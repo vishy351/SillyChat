@@ -1,0 +1,2 @@
+set(__QT_DEPLOY_TARGET_SillyChat_FILE /home/scar/Lab/UI_Design_and_Develpment/Local_AI_Frontend/SillyChat/build/SillyChat)
+set(__QT_DEPLOY_TARGET_SillyChat_TYPE EXECUTABLE)

@@ -1,0 +1,5 @@
+/home/scar/Lab/UI_Design_and_Develpment/Local_AI_Frontend/SillyChat/build/CMakeFiles/SillyChat.dir
+/home/scar/Lab/UI_Design_and_Develpment/Local_AI_Frontend/SillyChat/build/CMakeFiles/edit_cache.dir
+/home/scar/Lab/UI_Design_and_Develpment/Local_AI_Frontend/SillyChat/build/CMakeFiles/rebuild_cache.dir
+/home/scar/Lab/UI_Design_and_Develpment/Local_AI_Frontend/SillyChat/build/CMakeFiles/SillyChat_autogen_timestamp_deps.dir
+/home/scar/Lab/UI_Design_and_Develpment/Local_AI_Frontend/SillyChat/build/CMakeFiles/SillyChat_autogen.dir
