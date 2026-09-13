@@ -970,10 +970,8 @@ void MainWindow::setupConnections()
                     ? selectedCharacter->name
                     : "Assistant";
 
-            view->insertPlainText(
-                "\n" +
-                characterName +
-                ": "
+            chatPage->beginAssistantMessage(
+                characterName
             );
         }
     );
@@ -1175,6 +1173,10 @@ void MainWindow::selectCharacter(
 
     selectedCharacter =
         &characters[index];
+        
+    chatPage->setCharacterImage(
+        selectedCharacter->imagePath
+    );
 
     auto *greetingSelector =
         chatPage->greetingSelector();

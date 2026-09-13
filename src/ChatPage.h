@@ -33,6 +33,14 @@ public:
 
     QComboBox *greetingSelector() const;
 
+    void setCharacterImage(
+        const QString &imagePath
+    );
+
+    void beginAssistantMessage(
+        const QString &characterName
+    );
+
     void displayConversation(
         const QJsonArray &conversation,
         const QString &characterName
@@ -55,10 +63,12 @@ private:
     QPushButton *m_retryButton;
 
     QPushButton *m_saveConversationButton;
-
     QPushButton *m_loadConversationButton;
 
     QPushButton *m_editConversationButton;
 
     QComboBox *m_greetingSelector;
+
+    QString m_characterImagePath;
 };
+
