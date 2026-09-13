@@ -203,6 +203,16 @@ ChatPage::ChatPage(QWidget *parent)
         this,
         &ChatPage::editConversationRequested
     );
+
+    connect(
+        m_messageInput,
+        &QLineEdit::returnPressed,
+        m_sendButton,
+        &QPushButton::click
+    );
+    
+    m_messageInput->setFocus();
+
 }
 
 QTextEdit *ChatPage::chatView() const
