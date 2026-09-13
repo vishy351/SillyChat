@@ -1,48 +1,48 @@
 #include "MainWindow.h"
+
+#include "ChatPage.h"
+#include "CharactersPage.h"
+#include "SettingsPage.h"
 #include "KoboldClient.h"
 #include "GenerationSettings.h"
 #include "CharacterLoader.h"
 
-#include <QLabel>
+#include <QStatusBar>
 #include <QLineEdit>
+#include <QAction>
+#include <QComboBox>
+#include <QCoreApplication>
+#include <QDialog>
+#include <QDir>
+#include <QFile>
+#include <QFileDialog>
+#include <QFrame>
+#include <QHBoxLayout>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonValue>
+#include <QJsonArray>
+#include <QLabel>
+#include <QMessageBox>
+#include <QMenu>
+#include <QMenuBar>
 #include <QPushButton>
+#include <QScrollArea>
+#include <QSettings>
+#include <QSignalBlocker>
+#include <QTabWidget>
 #include <QTextEdit>
 #include <QTextCursor>
 #include <QVBoxLayout>
-#include <QHBoxLayout>
-#include <QGridLayout>
-#include <QWidget>
-#include <QSettings>
-#include <QJsonObject>
-#include <QJsonDocument>
-#include <QJsonValue>
-#include <QJsonArray>
-#include <QSpinBox>
-#include <QDoubleSpinBox>
-#include <QGroupBox>
-#include <QScrollArea>
-#include <QToolButton>
-#include <QPixmap>
-#include <QDir>
-#include <QFile>
-#include <QFileInfo>
-#include <QSizePolicy>
-#include <QCoreApplication>
-#include <QIcon>
-#include <QSize>
-#include <QFileDialog>
-#include <QMessageBox>
-#include <QDialog>
-#include <QComboBox>
-#include <QFrame>
 #include <QVector>
-#include <QSignalBlocker>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent),
-      generationSettings(
-          new GenerationSettings()
-      ),
+      chatPage(nullptr),
+      charactersPage(nullptr),
+      settingsPage(nullptr),
+      kobold(new KoboldClient(this)),
+      generationSettings(new GenerationSettings()),
       selectedCharacter(nullptr)
 {
     setWindowTitle(
@@ -54,1218 +54,105 @@ MainWindow::MainWindow(QWidget *parent)
         800
     );
 
-    auto *centralWidget =
-        new QWidget(this);
-
-    setCentralWidget(
-        centralWidget
-    );
-
-    auto *mainLayout =
-        new QVBoxLayout(
-            centralWidget
-        );
-
-    /*
-     * --------------------------------------------------
-     * KoboldCpp connection
-     * --------------------------------------------------
-     */
-
-    auto *serverLayout =
-        new QHBoxLayout();
-
-    auto *serverLabel =
-        new QLabel(
-            "KoboldCpp API:"
-        );
-
-    serverUrlInput =
-        new QLineEdit();
-
-    serverUrlInput->setPlaceholderText(
-        "http://127.0.0.1:5001"
-    );
-
-    connectButton =
-        new QPushButton(
-            "Connect"
-        );
-
-    serverLayout->addWidget(
-        serverLabel
-    );
-
-    serverLayout->addWidget(
-        serverUrlInput
-    );
-
-    serverLayout->addWidget(
-        connectButton
-    );
-
-    mainLayout->addLayout(
-        serverLayout
-    );
-
-    /*
-     * --------------------------------------------------
-     * Status
-     * --------------------------------------------------
-     */
-
-    auto *statusLayout =
-        new QHBoxLayout();
-
-    statusLabel =
-        new QLabel(
-            "KoboldCpp: Disconnected"
-        );
-
-    modelLabel =
-        new QLabel(
-            "Version: Unknown"
-        );
-
-    statusLayout->addWidget(
-        statusLabel
-    );
-
-    statusLayout->addStretch();
-
-    statusLayout->addWidget(
-        modelLabel
-    );
-
-    mainLayout->addLayout(
-        statusLayout
-    );
-
-    /*
-     * --------------------------------------------------
-     * Character selection
-     * --------------------------------------------------
-     */
-
-    characterGroup =
-        new QGroupBox(
-            "Characters"
-        );
-
-    auto *characterGroupLayout =
-        new QVBoxLayout(
-            characterGroup
-        );
-
-    characterScrollArea =
-        new QScrollArea();
-
-    characterScrollArea->setWidgetResizable(
-        true
-    );
-
-    characterScrollArea->setHorizontalScrollBarPolicy(
-        Qt::ScrollBarAlwaysOff
-    );
-
-    characterContainer =
-        new QWidget();
-
-    characterScrollArea->setWidget(
-        characterContainer
-    );
-
-    characterGroupLayout->addWidget(
-        characterScrollArea
-    );
-
-    /*
-     * Greeting selector.
-     *
-     * This is created as a child of characterGroup so
-     * selectCharacter() can find it without requiring
-     * another MainWindow member in MainWindow.h.
-     *
-     * V1 cards will have one entry: Default.
-     * V2 cards can additionally contain alternate
-     * greetings.
-     */
-
-    auto *greetingLayout =
-        new QHBoxLayout();
-
-    auto *greetingLabel =
-        new QLabel(
-            "Greeting:"
-        );
-
-    auto *greetingSelector =
-        new QComboBox(
-            characterGroup
-        );
-
-    greetingSelector->setObjectName(
-        "greetingSelector"
-    );
-
-    greetingSelector->setEnabled(
-        false
-    );
-
-    greetingSelector->setToolTip(
-        "Choose the greeting used when starting a new conversation."
-    );
-
-    greetingLayout->addWidget(
-        greetingLabel
-    );
-
-    greetingLayout->addWidget(
-        greetingSelector
-    );
-
-    characterGroupLayout->addLayout(
-        greetingLayout
-    );
-
-    mainLayout->addWidget(
-        characterGroup
-    );
+    setupPages();
+    setupConnections();
 
     loadCharacters();
 
-    /*
-     * Changing the greeting starts a fresh conversation
-     * for the currently selected character.
-     *
-     * Index 0 is always the normal first_mes greeting.
-     * Additional entries are V2 alternate greetings.
-     */
-
-    connect(
-        greetingSelector,
-        QOverload<int>::of(
-            &QComboBox::currentIndexChanged
-        ),
-        this,
-        [this, greetingSelector](
-            int index
-        )
-        {
-            if (!selectedCharacter)
-                return;
-
-            if (index < 0)
-                return;
-
-            if (greetingSelector->property(
-                    "updating"
-                ).toBool())
-            {
-                return;
-            }
-
-            /*
-             * Do not interrupt an active generation.
-             */
-
-            if (sendButton &&
-                sendButton->text() == "Stop")
-            {
-                QMessageBox::information(
-                    this,
-                    "Greeting",
-                    "Please stop the current generation before changing the greeting."
-                );
-
-                const int previousIndex =
-                    greetingSelector->property(
-                        "previousIndex"
-                    ).toInt();
-
-                QSignalBlocker blocker(
-                    greetingSelector
-                );
-
-                greetingSelector->setCurrentIndex(
-                    previousIndex
-                );
-
-                return;
-            }
-
-            /*
-             * Ask before throwing away an existing
-             * conversation.
-             */
-
-            if (!conversation.isEmpty())
-            {
-                bool hasVisibleConversation =
-                    false;
-
-                for (const QJsonValue &value :
-                     conversation)
-                {
-                    if (!value.isObject())
-                        continue;
-
-                    const QString role =
-                        value.toObject()
-                            .value("role")
-                            .toString();
-
-                    if (role == "user" ||
-                        role == "assistant")
-                    {
-                        hasVisibleConversation = true;
-                        break;
-                    }
-                }
-
-                if (hasVisibleConversation)
-                {
-                    const QMessageBox::StandardButton result =
-                        QMessageBox::question(
-                            this,
-                            "Change Greeting",
-                            "Changing the greeting will start a new conversation.\n\n"
-                            "Do you want to continue?",
-                            QMessageBox::Yes |
-                            QMessageBox::No
-                        );
-
-                    if (result != QMessageBox::Yes)
-                    {
-                        const int previousIndex =
-                            greetingSelector->property(
-                                "previousIndex"
-                            ).toInt();
-
-                        QSignalBlocker blocker(
-                            greetingSelector
-                        );
-
-                        greetingSelector->setCurrentIndex(
-                            previousIndex
-                        );
-
-                        return;
-                    }
-                }
-            }
-
-            greetingSelector->setProperty(
-                "previousIndex",
-                index
-            );
-
-            conversation =
-                QJsonArray();
-
-            chatView->clear();
-
-            /*
-             * The system instructions are rebuilt first.
-             */
-
-            buildCharacterPrompt();
-
-            /*
-             * Retrieve the selected greeting.
-             */
-
-            QString greeting;
-
-            if (index == 0)
-            {
-                greeting =
-                    selectedCharacter->firstMessage;
-            }
-            else
-            {
-                const int alternateIndex =
-                    index - 1;
-
-                if (alternateIndex >= 0 &&
-                    alternateIndex <
-                        selectedCharacter
-                            ->alternateGreetings
-                            .size())
-                {
-                    greeting =
-                        selectedCharacter
-                            ->alternateGreetings
-                            .at(
-                                alternateIndex
-                            );
-                }
-            }
-
-            /*
-             * Add the selected greeting as the
-             * initial assistant message.
-             */
-
-            if (!greeting.isEmpty())
-            {
-                QJsonObject greetingMessage;
-
-                greetingMessage["role"] =
-                    "assistant";
-
-                greetingMessage["content"] =
-                    greeting;
-
-                conversation.append(
-                    greetingMessage
-                );
-
-                chatView->moveCursor(
-                    QTextCursor::End
-                );
-
-                chatView->insertPlainText(
-                    selectedCharacter->name +
-                    ": " +
-                    greeting +
-                    "\n"
-                );
-            }
-
-            statusLabel->setText(
-                "Selected greeting: " +
-                selectedCharacter->name
-            );
-
-            messageInput->clear();
-
-            messageInput->setFocus();
-
-            updateRetryButtonState();
-        }
-    );
-
-    /*
-     * --------------------------------------------------
-     * Generation settings
-     * --------------------------------------------------
-     */
-
-    generationGroup =
-        new QGroupBox(
-            "Generation Settings"
-        );
-
-    auto *settingsLayout =
-        new QGridLayout(
-            generationGroup
-        );
-
-    settingsLayout->addWidget(
-        new QLabel("Context Size"),
-        0,
-        0
-    );
-
-    contextSizeInput =
-        new QSpinBox();
-
-    contextSizeInput->setRange(
-        0,
-        1048576
-    );
-
-    contextSizeInput->setSpecialValueText(
-        "Unknown"
-    );
-
-    contextSizeInput->setReadOnly(
-        true
-    );
-
-    contextSizeInput->setButtonSymbols(
-        QAbstractSpinBox::NoButtons
-    );
-
-    contextSizeInput->setValue(
-        0
-    );
-
-    settingsLayout->addWidget(
-        contextSizeInput,
-        0,
-        1
-    );
-
-    settingsLayout->addWidget(
-        new QLabel("Max Response"),
-        0,
-        2
-    );
-
-    maxResponseInput =
-        new QSpinBox();
-
-    maxResponseInput->setRange(
-        1,
-        1048576
-    );
-
-    maxResponseInput->setSingleStep(
-        64
-    );
-
-    settingsLayout->addWidget(
-        maxResponseInput,
-        0,
-        3
-    );
-
-    settingsLayout->addWidget(
-        new QLabel("Temperature"),
-        1,
-        0
-    );
-
-    temperatureInput =
-        new QDoubleSpinBox();
-
-    temperatureInput->setRange(
-        0.0,
-        5.0
-    );
-
-    temperatureInput->setSingleStep(
-        0.05
-    );
-
-    temperatureInput->setDecimals(
-        2
-    );
-
-    settingsLayout->addWidget(
-        temperatureInput,
-        1,
-        1
-    );
-
-    settingsLayout->addWidget(
-        new QLabel("Top K"),
-        1,
-        2
-    );
-
-    topKInput =
-        new QSpinBox();
-
-    topKInput->setRange(
-        0,
-        100000
-    );
-
-    settingsLayout->addWidget(
-        topKInput,
-        1,
-        3
-    );
-
-    settingsLayout->addWidget(
-        new QLabel("Top P"),
-        2,
-        0
-    );
-
-    topPInput =
-        new QDoubleSpinBox();
-
-    topPInput->setRange(
-        0.0,
-        1.0
-    );
-
-    topPInput->setSingleStep(
-        0.01
-    );
-
-    topPInput->setDecimals(
-        2
-    );
-
-    settingsLayout->addWidget(
-        topPInput,
-        2,
-        1
-    );
-
-    settingsLayout->addWidget(
-        new QLabel("Min P"),
-        2,
-        2
-    );
-
-    minPInput =
-        new QDoubleSpinBox();
-
-    minPInput->setRange(
-        0.0,
-        1.0
-    );
-
-    minPInput->setSingleStep(
-        0.01
-    );
-
-    minPInput->setDecimals(
-        2
-    );
-
-    settingsLayout->addWidget(
-        minPInput,
-        2,
-        3
-    );
-
-    settingsLayout->addWidget(
-        new QLabel("Typical P"),
-        3,
-        0
-    );
-
-    typicalPInput =
-        new QDoubleSpinBox();
-
-    typicalPInput->setRange(
-        0.0,
-        1.0
-    );
-
-    typicalPInput->setSingleStep(
-        0.01
-    );
-
-    typicalPInput->setDecimals(
-        2
-    );
-
-    settingsLayout->addWidget(
-        typicalPInput,
-        3,
-        1
-    );
-
-    settingsLayout->addWidget(
-        new QLabel("TFS"),
-        3,
-        2
-    );
-
-    tfsInput =
-        new QDoubleSpinBox();
-
-    tfsInput->setRange(
-        0.0,
-        1.0
-    );
-
-    tfsInput->setSingleStep(
-        0.01
-    );
-
-    tfsInput->setDecimals(
-        2
-    );
-
-    settingsLayout->addWidget(
-        tfsInput,
-        3,
-        3
-    );
-
-    settingsLayout->addWidget(
-        new QLabel("Repeat Penalty"),
-        4,
-        0
-    );
-
-    repeatPenaltyInput =
-        new QDoubleSpinBox();
-
-    repeatPenaltyInput->setRange(
-        0.0,
-        5.0
-    );
-
-    repeatPenaltyInput->setSingleStep(
-        0.01
-    );
-
-    repeatPenaltyInput->setDecimals(
-        2
-    );
-
-    settingsLayout->addWidget(
-        repeatPenaltyInput,
-        4,
-        1
-    );
-
-    settingsLayout->addWidget(
-        new QLabel("Repeat Range"),
-        4,
-        2
-    );
-
-    repeatPenaltyRangeInput =
-        new QSpinBox();
-
-    repeatPenaltyRangeInput->setRange(
-        0,
-        1048576
-    );
-
-    settingsLayout->addWidget(
-        repeatPenaltyRangeInput,
-        4,
-        3
-    );
-
-    settingsLayout->addWidget(
-        new QLabel("Penalty Slope"),
-        5,
-        0
-    );
-
-    repeatPenaltySlopeInput =
-        new QDoubleSpinBox();
-
-    repeatPenaltySlopeInput->setRange(
-        0.0,
-        5.0
-    );
-
-    repeatPenaltySlopeInput->setSingleStep(
-        0.05
-    );
-
-    repeatPenaltySlopeInput->setDecimals(
-        2
-    );
-
-    settingsLayout->addWidget(
-        repeatPenaltySlopeInput,
-        5,
-        1
-    );
-
-    settingsLayout->addWidget(
-        new QLabel("Seed"),
-        5,
-        2
-    );
-
-    seedInput =
-        new QSpinBox();
-
-    seedInput->setRange(
-        -1,
-        2147483647
-    );
-
-    settingsLayout->addWidget(
-        seedInput,
-        5,
-        3
-    );
-
-    mainLayout->addWidget(
-        generationGroup
-    );
-
-    loadGenerationSettings();
-
-    /*
-     * --------------------------------------------------
-     * Chat
-     * --------------------------------------------------
-     */
-
-    chatView =
-        new QTextEdit();
-
-    chatView->setReadOnly(
-        true
-    );
-
-    chatView->setPlaceholderText(
-        "Conversation will appear here..."
-    );
-
-    mainLayout->addWidget(
-        chatView
-    );
-
-    /*
-     * --------------------------------------------------
-     * Conversation buttons
-     * --------------------------------------------------
-     */
-
-    auto *conversationButtonLayout =
-        new QHBoxLayout();
-
-    saveConversationButton =
-        new QPushButton(
-            "Save Conversation"
-        );
-
-    loadConversationButton =
-        new QPushButton(
-            "Load Conversation"
-        );
-
-    auto *editConversationButton =
-        new QPushButton(
-            "Edit Conversation"
-        );
-
-    retryButton =
-        new QPushButton(
-            "Retry"
-        );
-
-    conversationButtonLayout->addWidget(
-        saveConversationButton
-    );
-
-    conversationButtonLayout->addWidget(
-        loadConversationButton
-    );
-
-    conversationButtonLayout->addWidget(
-        editConversationButton
-    );
-
-    conversationButtonLayout->addWidget(
-        retryButton
-    );
-
-    conversationButtonLayout->addStretch();
-
-    mainLayout->addLayout(
-        conversationButtonLayout
-    );
-
-    /*
-     * --------------------------------------------------
-     * Input
-     * --------------------------------------------------
-     */
-
-    auto *inputLayout =
-        new QHBoxLayout();
-
-    messageInput =
-        new QLineEdit();
-
-    messageInput->setPlaceholderText(
-        "Message..."
-    );
-
-    sendButton =
-        new QPushButton(
-            "Send"
-        );
-
-    inputLayout->addWidget(
-        messageInput
-    );
-
-    inputLayout->addWidget(
-        sendButton
-    );
-
-    mainLayout->addLayout(
-        inputLayout
-    );
-
-    /*
-     * --------------------------------------------------
-     * Kobold client
-     * --------------------------------------------------
-     */
-
-    kobold =
-        new KoboldClient(
+    if (!characters.isEmpty())
+    {
+        selectCharacter(0);
+    }
+
+    connectToKobold();
+}
+
+void MainWindow::setupPages()
+{
+    auto *tabs =
+        new QTabWidget(
             this
         );
 
-    /*
-     * --------------------------------------------------
-     * Saved API address
-     * --------------------------------------------------
-     */
+    chatPage =
+        new ChatPage(
+            tabs
+        );
 
-    QSettings settings(
-        "SillyChat",
-        "SillyChat"
+    charactersPage =
+        new CharactersPage(
+            tabs
+        );
+
+    settingsPage =
+        new SettingsPage(
+            kobold,
+            generationSettings,
+            tabs
+        );
+
+    tabs->addTab(
+        chatPage,
+        "Chat"
     );
 
-    const QString savedUrl =
-        settings.value(
-            "koboldcpp/serverUrl",
-            "http://127.0.0.1:5001"
-        ).toString();
-
-    serverUrlInput->setText(
-        savedUrl
+    tabs->addTab(
+        charactersPage,
+        "Characters"
     );
 
-    kobold->setServerUrl(
-        savedUrl
+    tabs->addTab(
+        settingsPage,
+        "Settings"
+    );
+
+    setCentralWidget(
+        tabs
     );
 
     /*
-     * --------------------------------------------------
-     * Initial Retry state
-     * --------------------------------------------------
+     * Conversation file actions remain available
+     * without recreating the chat controls that now
+     * belong to ChatPage.
      */
 
-    updateRetryButtonState();
+    auto *conversationMenu =
+        menuBar()->addMenu(
+            "Conversation"
+        );
 
-    /*
-     * --------------------------------------------------
-     * Connection status
-     * --------------------------------------------------
-     */
+    auto *saveAction =
+        conversationMenu->addAction(
+            "Save Conversation"
+        );
+
+    auto *loadAction =
+        conversationMenu->addAction(
+            "Load Conversation"
+        );
+
+    auto *editAction =
+        conversationMenu->addAction(
+            "Edit Conversation"
+        );
 
     connect(
-        kobold,
-        &KoboldClient::connectionChanged,
-        this,
-        [this](
-            bool connected,
-            const QString &version
-        )
-        {
-            if (connected)
-            {
-                statusLabel->setText(
-                    "KoboldCpp: Connected"
-                );
-
-                modelLabel->setText(
-                    "Version: " +
-                    version
-                );
-
-                connectButton->setText(
-                    "Reconnect"
-                );
-            }
-            else
-            {
-                statusLabel->setText(
-                    "KoboldCpp: Disconnected"
-                );
-
-                modelLabel->setText(
-                    "Version: Unknown"
-                );
-
-                contextSizeInput->setValue(
-                    0
-                );
-
-                connectButton->setText(
-                    "Connect"
-                );
-            }
-        }
-    );
-
-    /*
-     * --------------------------------------------------
-     * Context size
-     * --------------------------------------------------
-     */
-
-    connect(
-        kobold,
-        &KoboldClient::contextSizeChanged,
-        this,
-        [this](
-            int contextSize
-        )
-        {
-            contextSizeInput->setValue(
-                contextSize
-            );
-        }
-    );
-
-    /*
-     * --------------------------------------------------
-     * Generation started
-     * --------------------------------------------------
-     */
-
-    connect(
-        kobold,
-        &KoboldClient::generationStarted,
-        this,
-        [this]()
-        {
-            sendButton->setEnabled(
-                true
-            );
-
-            sendButton->setText(
-                "Stop"
-            );
-
-            retryButton->setEnabled(
-                false
-            );
-
-            statusLabel->setText(
-                "KoboldCpp: Generating..."
-            );
-
-            chatView->moveCursor(
-                QTextCursor::End
-            );
-
-            const QString characterName =
-                selectedCharacter
-                    ? selectedCharacter->name
-                    : "Assistant";
-
-            chatView->insertPlainText(
-                "\n"
-            );
-
-            chatView->insertPlainText(
-                characterName +
-                ": "
-            );
-        }
-    );
-
-    /*
-     * --------------------------------------------------
-     * Streaming tokens
-     * --------------------------------------------------
-     */
-
-    connect(
-        kobold,
-        &KoboldClient::generationToken,
-        this,
-        [this](
-            const QString &text
-        )
-        {
-            chatView->moveCursor(
-                QTextCursor::End
-            );
-
-            chatView->insertPlainText(
-                text
-            );
-
-            chatView->ensureCursorVisible();
-        }
-    );
-
-    /*
-     * --------------------------------------------------
-     * Generation finished
-     * --------------------------------------------------
-     */
-
-    connect(
-        kobold,
-        &KoboldClient::generationFinished,
-        this,
-        [this](
-            const QString &response
-        )
-        {
-            if (!response.isEmpty())
-            {
-                QJsonObject assistantMessage;
-
-                assistantMessage["role"] =
-                    "assistant";
-
-                assistantMessage["content"] =
-                    response;
-
-                conversation.append(
-                    assistantMessage
-                );
-            }
-
-            sendButton->setEnabled(
-                true
-            );
-
-            sendButton->setText(
-                "Send"
-            );
-
-            statusLabel->setText(
-                "KoboldCpp: Connected"
-            );
-
-            displayConversation();
-        }
-    );
-
-    /*
-     * --------------------------------------------------
-     * Generation error
-     * --------------------------------------------------
-     */
-
-    connect(
-        kobold,
-        &KoboldClient::generationError,
-        this,
-        [this](
-            const QString &error
-        )
-        {
-            chatView->append(
-                QString(
-                    "<b>Error:</b> %1"
-                ).arg(
-                    error.toHtmlEscaped()
-                )
-            );
-
-            sendButton->setEnabled(
-                true
-            );
-
-            sendButton->setText(
-                "Send"
-            );
-
-            statusLabel->setText(
-                "KoboldCpp: Error"
-            );
-
-            updateRetryButtonState();
-        }
-    );
-
-    /*
-     * --------------------------------------------------
-     * Connect button
-     * --------------------------------------------------
-     */
-
-    connect(
-        connectButton,
-        &QPushButton::clicked,
-        this,
-        &MainWindow::connectToKobold
-    );
-
-    /*
-     * --------------------------------------------------
-     * Send / Stop button
-     * --------------------------------------------------
-     */
-
-    connect(
-        sendButton,
-        &QPushButton::clicked,
-        this,
-        [this]()
-        {
-            if (sendButton->text() == "Stop")
-            {
-                kobold->abortGeneration();
-
-                return;
-            }
-
-            sendMessage();
-        }
-    );
-
-    /*
-     * --------------------------------------------------
-     * Enter to send / stop
-     * --------------------------------------------------
-     */
-
-    connect(
-        messageInput,
-        &QLineEdit::returnPressed,
-        sendButton,
-        &QPushButton::click
-    );
-
-    /*
-     * --------------------------------------------------
-     * Save conversation
-     * --------------------------------------------------
-     */
-
-    connect(
-        saveConversationButton,
-        &QPushButton::clicked,
+        saveAction,
+        &QAction::triggered,
         this,
         &MainWindow::saveConversation
     );
 
-    /*
-     * --------------------------------------------------
-     * Load conversation
-     * --------------------------------------------------
-     */
-
     connect(
-        loadConversationButton,
-        &QPushButton::clicked,
+        loadAction,
+        &QAction::triggered,
         this,
         &MainWindow::loadConversation
     );
 
-    /*
-     * --------------------------------------------------
-     * Retry last AI response
-     * --------------------------------------------------
-     */
-
     connect(
-        retryButton,
-        &QPushButton::clicked,
-        this,
-        &MainWindow::retryLastResponse
-    );
-
-    /*
-     * --------------------------------------------------
-     * Edit conversation
-     *
-     * The editor works on a temporary copy.
-     * Nothing changes in the actual conversation
-     * until Apply Changes is pressed.
-     *
-     * Deleted messages are hidden rather than being
-     * destroyed immediately. This prevents dangling
-     * widget pointers while the editor is open.
-     * --------------------------------------------------
-     */
-
-    connect(
-        editConversationButton,
-        &QPushButton::clicked,
+        editAction,
+        &QAction::triggered,
         this,
         [this]()
         {
@@ -1280,7 +167,7 @@ MainWindow::MainWindow(QWidget *parent)
                 return;
             }
 
-            if (sendButton->text() == "Stop")
+            if (chatPage->sendButton()->text() == "Stop")
             {
                 QMessageBox::information(
                     this,
@@ -1302,7 +189,9 @@ MainWindow::MainWindow(QWidget *parent)
                 return;
             }
 
-            QDialog dialog(this);
+            QDialog dialog(
+                this
+            );
 
             dialog.setWindowTitle(
                 "Edit Conversation"
@@ -1395,7 +284,9 @@ MainWindow::MainWindow(QWidget *parent)
 
                     auto *roleLabel =
                         new QLabel(
-                            "Role:"
+                            system
+                                ? "System:"
+                                : "Role:"
                         );
 
                     auto *roleCombo =
@@ -1420,10 +311,6 @@ MainWindow::MainWindow(QWidget *parent)
 
                     if (system)
                     {
-                        roleLabel->setText(
-                            "System:"
-                        );
-
                         roleCombo->setCurrentIndex(
                             0
                         );
@@ -1483,10 +370,6 @@ MainWindow::MainWindow(QWidget *parent)
                         contentEdit->setReadOnly(
                             true
                         );
-
-                        contentEdit->setPlaceholderText(
-                            "Protected system instructions"
-                        );
                     }
 
                     rowLayout->addWidget(
@@ -1534,15 +417,19 @@ MainWindow::MainWindow(QWidget *parent)
                                 return;
                             }
 
-                            editorMessages[editorIndex].deleted =
-                                true;
+                            editorMessages[
+                                editorIndex
+                            ].deleted = true;
 
-                            editorMessages[editorIndex].row->hide();
+                            editorMessages[
+                                editorIndex
+                            ].row->hide();
                         }
                     );
                 };
 
-            for (const QJsonValue &value : conversation)
+            for (const QJsonValue &value :
+                 conversation)
             {
                 if (!value.isObject())
                     continue;
@@ -1560,28 +447,14 @@ MainWindow::MainWindow(QWidget *parent)
                         "content"
                     ).toString();
 
-                if (role == "system")
+                if (role == "system" ||
+                    role == "user" ||
+                    role == "assistant")
                 {
                     addMessageEditor(
-                        "system",
+                        role,
                         content,
-                        true
-                    );
-                }
-                else if (role == "user")
-                {
-                    addMessageEditor(
-                        "user",
-                        content,
-                        false
-                    );
-                }
-                else if (role == "assistant")
-                {
-                    addMessageEditor(
-                        "assistant",
-                        content,
-                        false
+                        role == "system"
                     );
                 }
             }
@@ -1607,9 +480,7 @@ MainWindow::MainWindow(QWidget *parent)
                 addMessageButton,
                 &QPushButton::clicked,
                 &dialog,
-                [
-                    &addMessageEditor
-                ]()
+                [&addMessageEditor]()
                 {
                     addMessageEditor(
                         "user",
@@ -1669,14 +540,7 @@ MainWindow::MainWindow(QWidget *parent)
                  editorMessages)
             {
                 if (editorMessage.deleted)
-                {
                     continue;
-                }
-
-                if (!editorMessage.row)
-                {
-                    continue;
-                }
 
                 const QString content =
                     editorMessage.content
@@ -1728,7 +592,8 @@ MainWindow::MainWindow(QWidget *parent)
                 return;
             }
 
-            bool hasSystemMessage = false;
+            bool hasSystemMessage =
+                false;
 
             for (const QJsonValue &value :
                  editedConversation)
@@ -1761,135 +626,508 @@ MainWindow::MainWindow(QWidget *parent)
 
             displayConversation();
 
-            statusLabel->setText(
+            statusBar()->showMessage(
                 "Conversation edited."
             );
 
-            messageInput->setFocus();
+            chatPage
+                ->messageInput()
+                ->setFocus();
+        }
+    );
+
+    connect(
+        chatPage,
+        &ChatPage::editConversationRequested,
+        editAction,
+        &QAction::trigger
+    );
+
+    connect(
+        chatPage,
+        &ChatPage::saveConversationRequested,
+        saveAction,
+        &QAction::trigger
+    );
+
+    connect(
+        chatPage,
+        &ChatPage::loadConversationRequested,
+        loadAction,
+        &QAction::trigger
+    );
+
+}
+
+void MainWindow::setupConnections()
+{
+    /*
+     * Character selection.
+     */
+
+    connect(
+        charactersPage,
+        &CharactersPage::characterSelected,
+        this,
+        &MainWindow::selectCharacter
+    );
+
+    /*
+     * Character import is currently handled by the
+     * CharactersPage UI. Keep the signal connected
+     * so the action has a clear response until the
+     * character importer is implemented.
+     */
+
+    connect(
+        charactersPage,
+        &CharactersPage::importRequested,
+        this,
+        [this]()
+        {
+            QMessageBox::information(
+                this,
+                "Import Character",
+                "Character import is not available yet."
+            );
         }
     );
 
     /*
-     * --------------------------------------------------
-     * Save settings whenever they change.
-     * --------------------------------------------------
+     * Greeting selection.
      */
 
     connect(
-        maxResponseInput,
-        &QSpinBox::valueChanged,
+        chatPage->greetingSelector(),
+        QOverload<int>::of(
+            &QComboBox::currentIndexChanged
+        ),
         this,
-        [this]()
+        [this](
+            int index
+        )
         {
-            saveGenerationSettings();
-        }
-    );
+            auto *selector =
+                chatPage->greetingSelector();
 
-    connect(
-        temperatureInput,
-        &QDoubleSpinBox::valueChanged,
-        this,
-        [this]()
-        {
-            saveGenerationSettings();
-        }
-    );
+            if (!selectedCharacter ||
+                index < 0)
+            {
+                return;
+            }
 
-    connect(
-        topKInput,
-        &QSpinBox::valueChanged,
-        this,
-        [this]()
-        {
-            saveGenerationSettings();
-        }
-    );
+            if (selector->property(
+                    "updating"
+                ).toBool())
+            {
+                return;
+            }
 
-    connect(
-        topPInput,
-        &QDoubleSpinBox::valueChanged,
-        this,
-        [this]()
-        {
-            saveGenerationSettings();
-        }
-    );
+            if (chatPage->sendButton()->text() == "Stop")
+            {
+                QMessageBox::information(
+                    this,
+                    "Greeting",
+                    "Please stop the current generation before changing the greeting."
+                );
 
-    connect(
-        minPInput,
-        &QDoubleSpinBox::valueChanged,
-        this,
-        [this]()
-        {
-            saveGenerationSettings();
-        }
-    );
+                const int previousIndex =
+                    selector->property(
+                        "previousIndex"
+                    ).toInt();
 
-    connect(
-        typicalPInput,
-        &QDoubleSpinBox::valueChanged,
-        this,
-        [this]()
-        {
-            saveGenerationSettings();
-        }
-    );
+                QSignalBlocker blocker(
+                    selector
+                );
 
-    connect(
-        tfsInput,
-        &QDoubleSpinBox::valueChanged,
-        this,
-        [this]()
-        {
-            saveGenerationSettings();
-        }
-    );
+                selector->setCurrentIndex(
+                    previousIndex
+                );
 
-    connect(
-        repeatPenaltyInput,
-        &QDoubleSpinBox::valueChanged,
-        this,
-        [this]()
-        {
-            saveGenerationSettings();
-        }
-    );
+                return;
+            }
 
-    connect(
-        repeatPenaltyRangeInput,
-        &QSpinBox::valueChanged,
-        this,
-        [this]()
-        {
-            saveGenerationSettings();
-        }
-    );
+            bool hasVisibleConversation =
+                false;
 
-    connect(
-        repeatPenaltySlopeInput,
-        &QDoubleSpinBox::valueChanged,
-        this,
-        [this]()
-        {
-            saveGenerationSettings();
-        }
-    );
+            for (const QJsonValue &value :
+                 conversation)
+            {
+                if (!value.isObject())
+                    continue;
 
-    connect(
-        seedInput,
-        &QSpinBox::valueChanged,
-        this,
-        [this]()
-        {
-            saveGenerationSettings();
+                const QString role =
+                    value.toObject()
+                        .value("role")
+                        .toString();
+
+                if (role == "user" ||
+                    role == "assistant")
+                {
+                    hasVisibleConversation = true;
+                    break;
+                }
+            }
+
+            if (hasVisibleConversation)
+            {
+                const QMessageBox::StandardButton result =
+                    QMessageBox::question(
+                        this,
+                        "Change Greeting",
+                        "Changing the greeting will start a new conversation.\n\n"
+                        "Do you want to continue?",
+                        QMessageBox::Yes |
+                        QMessageBox::No
+                    );
+
+                if (result != QMessageBox::Yes)
+                {
+                    const int previousIndex =
+                        selector->property(
+                            "previousIndex"
+                        ).toInt();
+
+                    QSignalBlocker blocker(
+                        selector
+                    );
+
+                    selector->setCurrentIndex(
+                        previousIndex
+                    );
+
+                    return;
+                }
+            }
+
+            selector->setProperty(
+                "previousIndex",
+                index
+            );
+
+            conversation =
+                QJsonArray();
+
+            buildCharacterPrompt();
+
+            QString greeting;
+
+            if (index == 0)
+            {
+                greeting =
+                    selectedCharacter->firstMessage;
+            }
+            else
+            {
+                const int alternateIndex =
+                    index - 1;
+
+                if (alternateIndex >= 0 &&
+                    alternateIndex <
+                        selectedCharacter
+                            ->alternateGreetings
+                            .size())
+                {
+                    greeting =
+                        selectedCharacter
+                            ->alternateGreetings
+                            .at(
+                                alternateIndex
+                            );
+                }
+            }
+
+            if (!greeting.isEmpty())
+            {
+                QJsonObject greetingMessage;
+
+                greetingMessage["role"] =
+                    "assistant";
+
+                greetingMessage["content"] =
+                    greeting;
+
+                conversation.append(
+                    greetingMessage
+                );
+            }
+
+            displayConversation();
+
+            statusBar()->showMessage(
+                "Selected greeting: " +
+                selectedCharacter->name
+            );
+
+            chatPage
+                ->messageInput()
+                ->clear();
+
+            chatPage
+                ->messageInput()
+                ->setFocus();
+
+            updateRetryButtonState();
         }
     );
 
     /*
-     * Automatically connect.
+     * Send / Stop.
      */
 
-    connectToKobold();
+    connect(
+        chatPage->sendButton(),
+        &QPushButton::clicked,
+        this,
+        [this]()
+        {
+            if (chatPage->sendButton()->text() == "Stop")
+            {
+                kobold->abortGeneration();
+                return;
+            }
+
+            sendMessage();
+        }
+    );
+
+    /*
+     * Retry.
+     */
+
+    connect(
+        chatPage->retryButton(),
+        &QPushButton::clicked,
+        this,
+        &MainWindow::retryLastResponse
+    );
+    
+    /*
+     * Save / Load conversation.
+     *
+     * The buttons are owned by ChatPage.
+     * The actual operations remain in MainWindow.
+     */
+
+    connect(
+        chatPage,
+        &ChatPage::saveConversationRequested,
+        this,
+        &MainWindow::saveConversation
+    );
+
+    connect(
+        chatPage,
+        &ChatPage::loadConversationRequested,
+        this,
+        &MainWindow::loadConversation
+    );
+
+    /*
+     * KoboldCpp connection status.
+     * SettingsPage owns the actual connection UI.
+     */
+
+    connect(
+        settingsPage,
+        &SettingsPage::connectionStatusChanged,
+        this,
+        [this](
+            bool connected,
+            const QString &version
+        )
+        {
+            if (connected)
+            {
+                statusBar()->showMessage(
+                    "KoboldCpp connected - " +
+                    version
+                );
+            }
+            else
+            {
+                statusBar()->showMessage(
+                    "KoboldCpp disconnected"
+                );
+            }
+        }
+    );
+
+    /*
+     * Generation started.
+     */
+
+    connect(
+        kobold,
+        &KoboldClient::generationStarted,
+        this,
+        [this]()
+        {
+            chatPage
+                ->sendButton()
+                ->setEnabled(true);
+
+            chatPage
+                ->sendButton()
+                ->setText("Stop");
+
+            chatPage
+                ->retryButton()
+                ->setEnabled(false);
+
+            statusBar()->showMessage(
+                "KoboldCpp: Generating..."
+            );
+
+            auto *view =
+                chatPage->chatView();
+
+            view->moveCursor(
+                QTextCursor::End
+            );
+
+            const QString characterName =
+                selectedCharacter
+                    ? selectedCharacter->name
+                    : "Assistant";
+
+            view->insertPlainText(
+                "\n" +
+                characterName +
+                ": "
+            );
+        }
+    );
+
+    /*
+     * Streaming tokens.
+     */
+
+    connect(
+        kobold,
+        &KoboldClient::generationToken,
+        this,
+        [this](
+            const QString &text
+        )
+        {
+            auto *view =
+                chatPage->chatView();
+
+            view->moveCursor(
+                QTextCursor::End
+            );
+
+            view->insertPlainText(
+                text
+            );
+
+            view->ensureCursorVisible();
+        }
+    );
+
+    /*
+     * Generation finished.
+     */
+
+    connect(
+        kobold,
+        &KoboldClient::generationFinished,
+        this,
+        [this](
+            const QString &response
+        )
+        {
+            if (!response.isEmpty())
+            {
+                QJsonObject assistantMessage;
+
+                assistantMessage["role"] =
+                    "assistant";
+
+                assistantMessage["content"] =
+                    response;
+
+                conversation.append(
+                    assistantMessage
+                );
+            }
+
+            chatPage
+                ->sendButton()
+                ->setEnabled(true);
+
+            chatPage
+                ->sendButton()
+                ->setText("Send");
+
+            statusBar()->showMessage(
+                "KoboldCpp: Connected"
+            );
+
+            displayConversation();
+        }
+    );
+
+    /*
+     * Generation error.
+     */
+
+    connect(
+        kobold,
+        &KoboldClient::generationError,
+        this,
+        [this](
+            const QString &error
+        )
+        {
+            chatPage
+                ->chatView()
+                ->append(
+                    QString(
+                        "<b>Error:</b> %1"
+                    ).arg(
+                        error.toHtmlEscaped()
+                    )
+                );
+
+            chatPage
+                ->sendButton()
+                ->setEnabled(true);
+
+            chatPage
+                ->sendButton()
+                ->setText("Send");
+
+            statusBar()->showMessage(
+                "KoboldCpp: Error"
+            );
+
+            updateRetryButtonState();
+        }
+    );
+}
+
+void MainWindow::createDefaultCharacter()
+{
+    defaultCharacter =
+        Character();
+
+    defaultCharacter.name =
+        "Assistant";
+
+    defaultCharacter.description =
+        "A helpful conversational character.";
+
+    defaultCharacter.personality =
+        "Friendly, helpful, and conversational.";
+
+    defaultCharacter.firstMessage =
+        "Hello! How can I help you today?";
+
+    characters.append(
+        defaultCharacter
+    );
 }
 
 void MainWindow::loadCharacters()
@@ -1925,118 +1163,14 @@ void MainWindow::loadCharacters()
             charactersPath
         );
 
-    auto *layout =
-        new QGridLayout(
-            characterContainer
-        );
-
-    layout->setAlignment(
-        Qt::AlignTop | Qt::AlignLeft
-    );
-
-    layout->setHorizontalSpacing(
-        16
-    );
-
-    layout->setVerticalSpacing(
-        16
-    );
-
-    const int columns = 5;
-
-    for (int i = 0;
-         i < characters.size();
-         ++i)
-    {
-        const Character &character =
-            characters.at(i);
-
-        auto *button =
-            new QToolButton(
-                characterContainer
-            );
-
-        button->setText(
-            character.name
-        );
-
-        button->setToolButtonStyle(
-            Qt::ToolButtonTextUnderIcon
-        );
-
-        button->setIconSize(
-            QSize(
-                140,
-                140
-            )
-        );
-
-        button->setFixedSize(
-            170,
-            190
-        );
-
-        button->setSizePolicy(
-            QSizePolicy::Fixed,
-            QSizePolicy::Fixed
-        );
-
-        if (!character.imagePath.isEmpty())
-        {
-            QPixmap image(
-                character.imagePath
-            );
-
-            if (!image.isNull())
-            {
-                button->setIcon(
-                    QIcon(
-                        image
-                    )
-                );
-            }
-        }
-
-        connect(
-            button,
-            &QToolButton::clicked,
-            this,
-            [this, i]()
-            {
-                selectCharacter(i);
-            }
-        );
-
-        const int row =
-            i / columns;
-
-        const int column =
-            i % columns;
-
-        layout->addWidget(
-            button,
-            row,
-            column
-        );
-    }
-
     if (characters.isEmpty())
     {
-        auto *label =
-            new QLabel(
-                "No characters found."
-            );
-
-        label->setAlignment(
-            Qt::AlignCenter
-        );
-
-        layout->addWidget(
-            label,
-            0,
-            0
-        );
+        createDefaultCharacter();
     }
+
+    charactersPage->setCharacters(
+        characters
+    );
 }
 
 void MainWindow::selectCharacter(
@@ -2049,8 +1183,7 @@ void MainWindow::selectCharacter(
         return;
     }
 
-    if (sendButton &&
-        sendButton->text() == "Stop")
+    if (chatPage->sendButton()->text() == "Stop")
     {
         QMessageBox::information(
             this,
@@ -2064,18 +1197,9 @@ void MainWindow::selectCharacter(
     selectedCharacter =
         &characters[index];
 
-    /*
-     * Update the greeting selector.
-     */
-
     auto *greetingSelector =
-        characterGroup
-            ? characterGroup->findChild<QComboBox *>(
-                "greetingSelector"
-            )
-            : nullptr;
+        chatPage->greetingSelector();
 
-    if (greetingSelector)
     {
         QSignalBlocker blocker(
             greetingSelector
@@ -2118,25 +1242,10 @@ void MainWindow::selectCharacter(
         );
     }
 
-    /*
-     * Start a completely new conversation.
-     */
-
     conversation =
         QJsonArray();
 
-    chatView->clear();
-
-    /*
-     * Add the character's instructions
-     * as a system message.
-     */
-
     buildCharacterPrompt();
-
-    /*
-     * Add the default character greeting.
-     */
 
     if (!selectedCharacter->firstMessage.isEmpty())
     {
@@ -2151,27 +1260,22 @@ void MainWindow::selectCharacter(
         conversation.append(
             greetingMessage
         );
-
-        chatView->moveCursor(
-            QTextCursor::End
-        );
-
-        chatView->insertPlainText(
-            selectedCharacter->name +
-            ": " +
-            selectedCharacter->firstMessage +
-            "\n"
-        );
     }
 
-    statusLabel->setText(
+    displayConversation();
+
+    statusBar()->showMessage(
         "Selected character: " +
         selectedCharacter->name
     );
 
-    messageInput->clear();
+    chatPage
+        ->messageInput()
+        ->clear();
 
-    messageInput->setFocus();
+    chatPage
+        ->messageInput()
+        ->setFocus();
 
     updateRetryButtonState();
 }
@@ -2211,13 +1315,6 @@ void MainWindow::buildCharacterPrompt()
             selectedCharacter->scenario +
             "\n\n";
     }
-
-    /*
-     * V2 character cards may provide their own
-     * system_prompt. Use it as additional character
-     * instructions rather than replacing the basic
-     * character information above.
-     */
 
     if (!selectedCharacter->characterSystemPrompt.isEmpty())
     {
@@ -2374,7 +1471,7 @@ void MainWindow::saveConversation()
 
     file.close();
 
-    statusLabel->setText(
+    statusBar()->showMessage(
         "Conversation saved."
     );
 }
@@ -2410,7 +1507,7 @@ void MainWindow::loadConversation()
         characterDirectoryPath
     );
 
-    QString startingDirectory =
+    const QString startingDirectory =
         characterDirectory.exists()
             ? characterDirectoryPath
             : conversationsPath;
@@ -2526,231 +1623,78 @@ void MainWindow::loadConversation()
 
     displayConversation();
 
-    statusLabel->setText(
+    statusBar()->showMessage(
         "Conversation loaded."
     );
 
-    messageInput->clear();
+    chatPage
+        ->messageInput()
+        ->clear();
 
-    messageInput->setFocus();
+    chatPage
+        ->messageInput()
+        ->setFocus();
 }
 
 void MainWindow::displayConversation()
 {
-    chatView->clear();
-
-    if (!selectedCharacter)
-    {
-        updateRetryButtonState();
-
+    if (!chatPage)
         return;
-    }
 
-    for (const QJsonValue &value : conversation)
-    {
-        if (!value.isObject())
-            continue;
-
-        const QJsonObject message =
-            value.toObject();
-
-        const QString role =
-            message.value(
-                "role"
-            ).toString();
-
-        const QString content =
-            message.value(
-                "content"
-            ).toString();
-
-        if (content.isEmpty())
-            continue;
-
-        if (role == "system")
-        {
-            continue;
-        }
-
-        if (role == "user")
-        {
-            chatView->append(
-                "You: " +
-                content.toHtmlEscaped()
-            );
-        }
-        else if (role == "assistant")
-        {
-            chatView->append(
-                selectedCharacter->name +
-                ": " +
-                content.toHtmlEscaped()
-            );
-        }
-    }
-
-    chatView->moveCursor(
-        QTextCursor::End
+    chatPage->displayConversation(
+        conversation,
+        selectedCharacter
+            ? selectedCharacter->name
+            : QString()
     );
-
-    chatView->ensureCursorVisible();
 
     updateRetryButtonState();
 }
 
 void MainWindow::loadGenerationSettings()
 {
-    generationSettings->load();
-
-    maxResponseInput->setValue(
-        generationSettings->maxResponse
-    );
-
-    temperatureInput->setValue(
-        generationSettings->temperature
-    );
-
-    topKInput->setValue(
-        generationSettings->topK
-    );
-
-    topPInput->setValue(
-        generationSettings->topP
-    );
-
-    minPInput->setValue(
-        generationSettings->minP
-    );
-
-    typicalPInput->setValue(
-        generationSettings->typicalP
-    );
-
-    tfsInput->setValue(
-        generationSettings->tfs
-    );
-
-    repeatPenaltyInput->setValue(
-        generationSettings->repeatPenalty
-    );
-
-    repeatPenaltyRangeInput->setValue(
-        generationSettings->repeatPenaltyRange
-    );
-
-    repeatPenaltySlopeInput->setValue(
-        generationSettings->repeatPenaltySlope
-    );
-
-    seedInput->setValue(
-        generationSettings->seed
-    );
+    if (generationSettings)
+    {
+        generationSettings->load();
+    }
 }
 
 void MainWindow::updateGenerationSettingsFromUi()
 {
-    generationSettings->maxResponse =
-        maxResponseInput->value();
-
-    generationSettings->temperature =
-        temperatureInput->value();
-
-    generationSettings->topK =
-        topKInput->value();
-
-    generationSettings->topP =
-        topPInput->value();
-
-    generationSettings->minP =
-        minPInput->value();
-
-    generationSettings->typicalP =
-        typicalPInput->value();
-
-    generationSettings->tfs =
-        tfsInput->value();
-
-    generationSettings->repeatPenalty =
-        repeatPenaltyInput->value();
-
-    generationSettings->repeatPenaltyRange =
-        repeatPenaltyRangeInput->value();
-
-    generationSettings->repeatPenaltySlope =
-        repeatPenaltySlopeInput->value();
-
-    generationSettings->seed =
-        seedInput->value();
+    /*
+     * SettingsPage owns the generation controls and
+     * continuously saves their values into the shared
+     * GenerationSettings instance.
+     *
+     * Nothing needs to be copied here.
+     */
 }
 
 void MainWindow::saveGenerationSettings()
 {
-    if (!generationSettings)
-        return;
-
-    updateGenerationSettingsFromUi();
-
-    generationSettings->save();
+    if (generationSettings)
+    {
+        generationSettings->save();
+    }
 }
 
 void MainWindow::connectToKobold()
 {
-    QString url =
-        serverUrlInput->text()
-            .trimmed();
-
-    if (url.isEmpty())
-    {
-        url =
-            "http://127.0.0.1:5001";
-
-        serverUrlInput->setText(
-            url
-        );
-    }
-
-    while (url.endsWith('/'))
-    {
-        url.chop(1);
-    }
-
-    serverUrlInput->setText(
-        url
-    );
-
-    QSettings settings(
-        "SillyChat",
-        "SillyChat"
-    );
-
-    settings.setValue(
-        "koboldcpp/serverUrl",
-        url
-    );
-
-    kobold->setServerUrl(
-        url
-    );
-
-    statusLabel->setText(
-        "KoboldCpp: Connecting..."
-    );
-
-    modelLabel->setText(
-        "Version: Unknown"
-    );
-
-    contextSizeInput->setValue(
-        0
-    );
-
-    kobold->checkConnection();
+    /*
+     * SettingsPage owns the connection controls and
+     * calls KoboldClient::checkConnection().
+     *
+     * The saved URL is restored by SettingsPage.
+     */
+    Q_UNUSED(kobold);
 }
 
 void MainWindow::sendMessage()
 {
     const QString message =
-        messageInput->text()
+        chatPage
+            ->messageInput()
+            ->text()
             .trimmed();
 
     if (message.isEmpty())
@@ -2758,20 +1702,16 @@ void MainWindow::sendMessage()
 
     if (!selectedCharacter)
     {
-        chatView->append(
-            "<b>Please select a character first.</b>"
-        );
+        chatPage
+            ->chatView()
+            ->append(
+                "<b>Please select a character first.</b>"
+            );
 
         return;
     }
 
-    updateGenerationSettingsFromUi();
-
     generationSettings->save();
-
-    /*
-     * Add the user's message.
-     */
 
     QJsonObject userMessage;
 
@@ -2785,34 +1725,26 @@ void MainWindow::sendMessage()
         userMessage
     );
 
-    /*
-     * Display the user's message.
-     */
+    auto *view =
+        chatPage->chatView();
 
-    chatView->moveCursor(
+    view->moveCursor(
         QTextCursor::End
     );
 
-    chatView->insertPlainText(
+    view->insertPlainText(
         "\nYou: " +
         message +
         "\n\n"
     );
 
-    messageInput->clear();
+    chatPage
+        ->messageInput()
+        ->clear();
 
-    /*
-     * Retry is unavailable while a new response
-     * is being generated.
-     */
-
-    retryButton->setEnabled(
-        false
-    );
-
-    /*
-     * Send the complete conversation.
-     */
+    chatPage
+        ->retryButton()
+        ->setEnabled(false);
 
     kobold->generate(
         conversation,
@@ -2822,41 +1754,29 @@ void MainWindow::sendMessage()
 
 void MainWindow::updateRetryButtonState()
 {
-    if (!retryButton)
+    if (!chatPage ||
+        !chatPage->retryButton())
+    {
         return;
+    }
 
     if (!selectedCharacter)
     {
-        retryButton->setEnabled(
-            false
-        );
+        chatPage
+            ->retryButton()
+            ->setEnabled(false);
 
         return;
     }
 
-    /*
-     * Retry is unavailable while KoboldCpp is
-     * generating a response.
-     */
-
-    if (sendButton &&
-        sendButton->text() == "Stop")
+    if (chatPage->sendButton()->text() == "Stop")
     {
-        retryButton->setEnabled(
-            false
-        );
+        chatPage
+            ->retryButton()
+            ->setEnabled(false);
 
         return;
     }
-
-    /*
-     * Find out whether there is currently at
-     * least one assistant response.
-     *
-     * We search backwards because Retry always
-     * targets the latest assistant response
-     * that currently exists in the conversation.
-     */
 
     for (int i = conversation.size() - 1;
          i >= 0;
@@ -2871,17 +1791,17 @@ void MainWindow::updateRetryButtonState()
         if (message.value("role").toString() ==
             "assistant")
         {
-            retryButton->setEnabled(
-                true
-            );
+            chatPage
+                ->retryButton()
+                ->setEnabled(true);
 
             return;
         }
     }
 
-    retryButton->setEnabled(
-        false
-    );
+    chatPage
+        ->retryButton()
+        ->setEnabled(false);
 }
 
 void MainWindow::retryLastResponse()
@@ -2889,15 +1809,11 @@ void MainWindow::retryLastResponse()
     if (!selectedCharacter)
         return;
 
-    if (sendButton->text() == "Stop")
+    if (chatPage->sendButton()->text() == "Stop")
         return;
 
-    /*
-     * Find the latest assistant response currently
-     * present in the conversation.
-     */
-
-    int lastAssistantIndex = -1;
+    int lastAssistantIndex =
+        -1;
 
     for (int i = conversation.size() - 1;
          i >= 0;
@@ -2912,7 +1828,9 @@ void MainWindow::retryLastResponse()
         if (message.value("role").toString() ==
             "assistant")
         {
-            lastAssistantIndex = i;
+            lastAssistantIndex =
+                i;
+
             break;
         }
     }
@@ -2920,18 +1838,8 @@ void MainWindow::retryLastResponse()
     if (lastAssistantIndex < 0)
     {
         updateRetryButtonState();
-
         return;
     }
-
-    /*
-     * Remove the latest assistant response and
-     * everything that follows it.
-     *
-     * This creates the exact conversation state
-     * that existed immediately before that AI
-     * response was generated.
-     */
 
     while (conversation.size() >
            lastAssistantIndex)
@@ -2941,27 +1849,14 @@ void MainWindow::retryLastResponse()
 
     displayConversation();
 
-    /*
-     * Use the current generation settings.
-     */
-
-    updateGenerationSettingsFromUi();
-
     generationSettings->save();
 
-    /*
-     * The conversation now ends immediately before
-     * the old assistant response, so KoboldCpp
-     * generates a completely new response.
-     */
-
-    retryButton->setEnabled(
-        false
-    );
+    chatPage
+        ->retryButton()
+        ->setEnabled(false);
 
     kobold->generate(
         conversation,
         *generationSettings
     );
 }
-

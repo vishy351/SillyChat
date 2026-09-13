@@ -1,294 +1,249 @@
 #include "ChatPage.h"
 
 #include <QComboBox>
-#include <QFrame>
 #include <QHBoxLayout>
+#include <QJsonArray>
+#include <QJsonObject>
+#include <QJsonValue>
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
 #include <QTextCursor>
 #include <QTextEdit>
 #include <QVBoxLayout>
-#include <QJsonObject>
-#include <QJsonValue>
 
-
-ChatPage::ChatPage(
-    QWidget *parent
-)
+ChatPage::ChatPage(QWidget *parent)
     : QWidget(parent),
       m_chatView(nullptr),
       m_messageInput(nullptr),
       m_sendButton(nullptr),
       m_retryButton(nullptr),
+      m_saveConversationButton(nullptr),
+      m_loadConversationButton(nullptr),
+      m_editConversationButton(nullptr),
       m_greetingSelector(nullptr)
 {
-    /*
-     * --------------------------------------------------
-     * Main layout
-     * --------------------------------------------------
-     */
-
     auto *mainLayout =
         new QVBoxLayout(this);
 
-    mainLayout->setContentsMargins(
-        20,
-        20,
-        20,
-        20
-    );
-
-    mainLayout->setSpacing(
-        12
-    );
-
     /*
-     * --------------------------------------------------
-     * Conversation header
-     * --------------------------------------------------
+     * Greeting selector
      */
 
-    auto *headerLayout =
+    auto *greetingLayout =
         new QHBoxLayout();
-
-    auto *titleLabel =
-        new QLabel(
-            "Chat",
-            this
-        );
-
-    QFont titleFont =
-        titleLabel->font();
-
-    titleFont.setPointSize(
-        16
-    );
-
-    titleFont.setBold(
-        true
-    );
-
-    titleLabel->setFont(
-        titleFont
-    );
-
-    headerLayout->addWidget(
-        titleLabel
-    );
-
-    headerLayout->addStretch();
 
     auto *greetingLabel =
         new QLabel(
-            "Greeting:",
-            this
+            "Greeting:"
         );
 
     m_greetingSelector =
-        new QComboBox(
-            this
-        );
+        new QComboBox();
 
-    m_greetingSelector->setMinimumWidth(
-        180
-    );
-
-    m_greetingSelector->addItem(
-        "Default Greeting"
+    m_greetingSelector->setObjectName(
+        "greetingSelector"
     );
 
     m_greetingSelector->setEnabled(
         false
     );
 
-    headerLayout->addWidget(
+    greetingLayout->addWidget(
         greetingLabel
     );
 
-    headerLayout->addWidget(
+    greetingLayout->addWidget(
         m_greetingSelector
     );
 
     mainLayout->addLayout(
-        headerLayout
+        greetingLayout
     );
 
     /*
-     * --------------------------------------------------
-     * Chat view
-     * --------------------------------------------------
+     * Chat history controls
+     *
+     * Save and Load stay above the
+     * conversation history.
+     */
+
+    auto *topButtonLayout =
+        new QHBoxLayout();
+
+    m_saveConversationButton =
+        new QPushButton(
+            "Save Chat"
+        );
+
+    m_loadConversationButton =
+        new QPushButton(
+            "Load Chat"
+        );
+
+    topButtonLayout->addWidget(
+        m_saveConversationButton
+    );
+
+    topButtonLayout->addWidget(
+        m_loadConversationButton
+    );
+
+    topButtonLayout->addStretch();
+
+    mainLayout->addLayout(
+        topButtonLayout
+    );
+
+    /*
+     * Chat history
      */
 
     m_chatView =
-        new QTextEdit(
-            this
-        );
+        new QTextEdit();
 
     m_chatView->setReadOnly(
         true
     );
 
-    m_chatView->setAcceptRichText(
-        true
-    );
-
     m_chatView->setPlaceholderText(
-        "Your conversation will appear here..."
-    );
-
-    m_chatView->setMinimumHeight(
-        300
+        "Conversation will appear here..."
     );
 
     mainLayout->addWidget(
-        m_chatView,
-        1
+        m_chatView
     );
 
     /*
-     * --------------------------------------------------
      * Conversation controls
-     * --------------------------------------------------
+     *
+     * Edit is next to Retry, below
+     * the conversation history.
      */
 
-    auto *conversationLayout =
+    auto *conversationButtonLayout =
         new QHBoxLayout();
+
+    m_editConversationButton =
+        new QPushButton(
+            "Edit Chat"
+        );
 
     m_retryButton =
         new QPushButton(
-            "Retry",
-            this
+            "Retry"
         );
 
-    m_retryButton->setEnabled(
-        false
+    conversationButtonLayout->addWidget(
+        m_editConversationButton
     );
 
-    conversationLayout->addWidget(
+    conversationButtonLayout->addWidget(
         m_retryButton
     );
 
-    conversationLayout->addStretch();
+    conversationButtonLayout->addStretch();
 
     mainLayout->addLayout(
-        conversationLayout
+        conversationButtonLayout
     );
 
     /*
-     * --------------------------------------------------
      * Message input
-     * --------------------------------------------------
      */
 
-    auto *inputFrame =
-        new QFrame(
-            this
-        );
-
-    inputFrame->setFrameShape(
-        QFrame::StyledPanel
-    );
-
     auto *inputLayout =
-        new QHBoxLayout(
-            inputFrame
-        );
-
-    inputLayout->setContentsMargins(
-        8,
-        8,
-        8,
-        8
-    );
+        new QHBoxLayout();
 
     m_messageInput =
-        new QLineEdit(
-            inputFrame
-        );
+        new QLineEdit();
 
     m_messageInput->setPlaceholderText(
         "Message..."
     );
 
-    m_messageInput->setMinimumHeight(
-        38
-    );
-
     m_sendButton =
         new QPushButton(
-            "Send",
-            inputFrame
+            "Send"
         );
 
-    m_sendButton->setMinimumWidth(
-        80
-    );
-
-    m_sendButton->setMinimumHeight(
-        38
-    );
-
     inputLayout->addWidget(
-        m_messageInput,
-        1
+        m_messageInput
     );
 
     inputLayout->addWidget(
         m_sendButton
     );
 
-    mainLayout->addWidget(
-        inputFrame
+    mainLayout->addLayout(
+        inputLayout
     );
 
     /*
-     * --------------------------------------------------
-     * Enter sends the message.
-     *
-     * MainWindow remains responsible for deciding
-     * what happens when the button is pressed.
-     * --------------------------------------------------
+     * Button signals
      */
 
     connect(
-        m_messageInput,
-        &QLineEdit::returnPressed,
-        m_sendButton,
-        &QPushButton::click
+        m_saveConversationButton,
+        &QPushButton::clicked,
+        this,
+        &ChatPage::saveConversationRequested
+    );
+
+    connect(
+        m_loadConversationButton,
+        &QPushButton::clicked,
+        this,
+        &ChatPage::loadConversationRequested
+    );
+
+    connect(
+        m_editConversationButton,
+        &QPushButton::clicked,
+        this,
+        &ChatPage::editConversationRequested
     );
 }
-
 
 QTextEdit *ChatPage::chatView() const
 {
     return m_chatView;
 }
 
-
 QLineEdit *ChatPage::messageInput() const
 {
     return m_messageInput;
 }
-
 
 QPushButton *ChatPage::sendButton() const
 {
     return m_sendButton;
 }
 
-
 QPushButton *ChatPage::retryButton() const
 {
     return m_retryButton;
 }
 
+QPushButton *ChatPage::saveConversationButton() const
+{
+    return m_saveConversationButton;
+}
+
+QPushButton *ChatPage::loadConversationButton() const
+{
+    return m_loadConversationButton;
+}
+
+QPushButton *ChatPage::editConversationButton() const
+{
+    return m_editConversationButton;
+}
 
 QComboBox *ChatPage::greetingSelector() const
 {
     return m_greetingSelector;
 }
-
 
 void ChatPage::displayConversation(
     const QJsonArray &conversation,
@@ -297,8 +252,7 @@ void ChatPage::displayConversation(
 {
     m_chatView->clear();
 
-    for (const QJsonValue &value :
-         conversation)
+    for (const QJsonValue &value : conversation)
     {
         if (!value.isObject())
             continue;
@@ -319,15 +273,8 @@ void ChatPage::displayConversation(
         if (content.isEmpty())
             continue;
 
-        /*
-         * System instructions are never shown
-         * in the normal chat view.
-         */
-
         if (role == "system")
-        {
             continue;
-        }
 
         if (role == "user")
         {
@@ -338,13 +285,8 @@ void ChatPage::displayConversation(
         }
         else if (role == "assistant")
         {
-            const QString displayName =
-                characterName.isEmpty()
-                    ? "Assistant"
-                    : characterName;
-
             m_chatView->append(
-                displayName +
+                characterName +
                 ": " +
                 content.toHtmlEscaped()
             );
@@ -357,4 +299,3 @@ void ChatPage::displayConversation(
 
     m_chatView->ensureCursorVisible();
 }
-
