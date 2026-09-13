@@ -245,7 +245,7 @@ SettingsPage::SettingsPage(
     );
 
     maxResponseInput->setSingleStep(
-        64
+        1
     );
 
     settingsLayout->addWidget(
