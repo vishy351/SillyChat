@@ -1,0 +1,9 @@
+# Build files
+/build/
+
+# Character files
+/characters/
+
+# Saved conversations
+/conversations/
+
