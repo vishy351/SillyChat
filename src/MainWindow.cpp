@@ -901,27 +901,6 @@ void MainWindow::setupConnections()
         this,
         &MainWindow::retryLastResponse
     );
-    
-    /*
-     * Save / Load conversation.
-     *
-     * The buttons are owned by ChatPage.
-     * The actual operations remain in MainWindow.
-     */
-
-    connect(
-        chatPage,
-        &ChatPage::saveConversationRequested,
-        this,
-        &MainWindow::saveConversation
-    );
-
-    connect(
-        chatPage,
-        &ChatPage::loadConversationRequested,
-        this,
-        &MainWindow::loadConversation
-    );
 
     /*
      * KoboldCpp connection status.
