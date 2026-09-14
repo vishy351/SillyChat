@@ -449,6 +449,182 @@ void ChatPage::setCharacterImage(
         imagePath;
 }
 
+void ChatPage::beginUserMessage()
+{
+    m_chatView->moveCursor(
+        QTextCursor::End
+    );
+
+    if (m_chatView->document()->characterCount() > 1)
+    {
+        m_chatView->insertPlainText(
+            "\n"
+        );
+    }
+
+    QTextTableFormat tableFormat;
+
+    tableFormat.setBorder(
+        0
+    );
+
+    tableFormat.setCellPadding(
+        0
+    );
+
+    tableFormat.setCellSpacing(
+        0
+    );
+
+    QVector<QTextLength> columnWidths;
+
+    columnWidths.append(
+        QTextLength(
+            QTextLength::FixedLength,
+            175
+        )
+    );
+
+    columnWidths.append(
+        QTextLength(
+            QTextLength::PercentageLength,
+            100
+        )
+    );
+
+    tableFormat.setColumnWidthConstraints(
+        columnWidths
+    );
+
+    QTextTable *table =
+        m_chatView->textCursor()
+            .insertTable(
+                1,
+                2,
+                tableFormat
+            );
+
+    /*
+     * User profile cell.
+     */
+    QTextTableCell profileCell =
+        table->cellAt(
+            0,
+            0
+        );
+
+    QTextTableCellFormat profileFormat;
+
+    profileFormat.setVerticalAlignment(
+        QTextCharFormat::AlignMiddle
+    );
+
+    profileCell.setFormat(
+        profileFormat
+    );
+
+    QTextCursor profileCursor =
+        profileCell.firstCursorPosition();
+
+    QTextBlockFormat centerFormat;
+
+    centerFormat.setAlignment(
+        Qt::AlignHCenter
+    );
+
+    profileCursor.setBlockFormat(
+        centerFormat
+    );
+
+    /*
+     * Simple built-in user avatar.
+     */
+    QTextCharFormat avatarFormat;
+
+    avatarFormat.setFontPointSize(
+        42
+    );
+
+    profileCursor.setCharFormat(
+        avatarFormat
+    );
+
+    profileCursor.insertText(
+        "●"
+    );
+
+    profileCursor.insertText(
+        "\n"
+    );
+
+    /*
+     * User name.
+     */
+    QTextCharFormat nameFormat;
+
+    nameFormat.setFontWeight(
+        QFont::Bold
+    );
+
+    nameFormat.setFontPointSize(
+        10
+    );
+
+    profileCursor.setCharFormat(
+        nameFormat
+    );
+
+    profileCursor.insertText(
+        "You"
+    );
+
+    /*
+     * User message cell.
+     */
+    QTextTableCell responseCell =
+        table->cellAt(
+            0,
+            1
+        );
+
+    QTextTableCellFormat responseFormat;
+
+    responseFormat.setVerticalAlignment(
+        QTextCharFormat::AlignMiddle
+    );
+
+    responseFormat.setLeftPadding(
+        16
+    );
+
+    responseFormat.setRightPadding(
+        8
+    );
+
+    responseCell.setFormat(
+        responseFormat
+    );
+
+    QTextCursor responseCursor =
+        responseCell.firstCursorPosition();
+
+    QTextBlockFormat responseBlockFormat;
+
+    responseBlockFormat.setAlignment(
+        Qt::AlignLeft
+    );
+
+    responseCursor.setBlockFormat(
+        responseBlockFormat
+    );
+
+    m_chatView->setTextCursor(
+        responseCursor
+    );
+
+    m_chatView->ensureCursorVisible();
+}
+
 void ChatPage::beginAssistantMessage(
     const QString &characterName
 )
@@ -851,6 +1027,8 @@ void ChatPage::beginAssistantMessage(
 
             QTextCursor responseCursor =
                 responseCell.firstCursorPosition();
+                
+            m_chatView->setTextCursor(responseCursor);
 
             /*
              * Keep assistant text left aligned.
@@ -921,13 +1099,13 @@ void ChatPage::displayConversation(
 
         if (role == "user")
         {
-            m_chatView->moveCursor(
-                QTextCursor::End
+            beginUserMessage();
+
+            m_chatView->insertPlainText(
+                content
             );
 
             m_chatView->insertPlainText(
-                "You: " +
-                content +
                 "\n\n"
             );
         }

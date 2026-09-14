@@ -991,10 +991,6 @@ void MainWindow::setupConnections()
             auto *view =
                 chatPage->chatView();
 
-            view->moveCursor(
-                QTextCursor::End
-            );
-
             view->insertPlainText(
                 text
             );
@@ -1713,8 +1709,9 @@ void MainWindow::sendMessage()
         QTextCursor::End
     );
 
+    chatPage->beginUserMessage();
+
     view->insertPlainText(
-        "\nYou: " +
         message +
         "\n\n"
     );

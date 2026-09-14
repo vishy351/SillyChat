@@ -40,6 +40,8 @@ public:
     void beginAssistantMessage(
         const QString &characterName
     );
+    
+    void beginUserMessage();
 
     void displayConversation(
         const QJsonArray &conversation,
