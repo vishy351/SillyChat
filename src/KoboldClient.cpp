@@ -240,9 +240,21 @@ void KoboldClient::generate(
     const QJsonObject settingsJson =
         settings.toJson();
 
-    for (auto it = settingsJson.begin();
-         it != settingsJson.end();
+    QJsonObject modifiedSettings = settingsJson;
+
+    if (modifiedSettings.contains("max_tokens"))
+    {
+        const int maxTokens =
+            modifiedSettings.value("max_tokens").toInt();
+
+        modifiedSettings["max_tokens"] =
+            maxTokens + 30;
+    }
+
+    for (auto it = modifiedSettings.begin();
+         it != modifiedSettings.end();
          ++it)
+
     {
         body[it.key()] =
             it.value();
@@ -333,8 +345,39 @@ void KoboldClient::generate(
 
             generationActive = false;
 
+            QString completedText =
+                streamedText.trimmed();
+
+            int lastSentenceEnd = -1;
+
+            for (int i = 0;
+                 i < completedText.length();
+                 ++i)
+            {
+                const QChar character =
+                    completedText.at(i);
+
+                if (character == '.' ||
+                    character == '!' ||
+                    character == '?')
+                {
+                    lastSentenceEnd = i + 1;
+                }
+            }
+
+            if (lastSentenceEnd > 0)
+            {
+                completedText =
+                    completedText.left(
+                        lastSentenceEnd
+                    ).trimmed();
+            }
+
+            streamedText =
+                completedText;
+
             emit generationFinished(
-                streamedText
+                completedText
             );
         }
     );

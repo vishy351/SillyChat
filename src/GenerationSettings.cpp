@@ -198,7 +198,7 @@ QJsonObject GenerationSettings::toJson() const
             seed;
     }
 
-    json["max_length"] =
+    json["max_tokens"] =
         maxResponse;
 
     return json;
