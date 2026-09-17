@@ -449,7 +449,7 @@ void ChatPage::setCharacterImage(
         imagePath;
 }
 
-void ChatPage::beginUserMessage()
+void ChatPage::beginUserMessage(const QString &userName)
 {
     m_chatView->moveCursor(
         QTextCursor::End
@@ -575,7 +575,7 @@ void ChatPage::beginUserMessage()
     );
 
     profileCursor.insertText(
-        "You"
+        userName
     );
 
     /*
@@ -1068,7 +1068,8 @@ void ChatPage::beginAssistantMessage(
 
 void ChatPage::displayConversation(
     const QJsonArray &conversation,
-    const QString &characterName
+    const QString &characterName,
+    const QString &userName
 )
 {
     m_chatView->clear();
@@ -1099,7 +1100,7 @@ void ChatPage::displayConversation(
 
         if (role == "user")
         {
-            beginUserMessage();
+            beginUserMessage(userName);
 
             m_chatView->insertPlainText(
                 content

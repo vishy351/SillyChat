@@ -22,6 +22,8 @@ public:
         QWidget *parent = nullptr
     );
 
+    QString userName() const;
+
 signals:
     void connectionStatusChanged(
         bool connected,
@@ -40,6 +42,7 @@ private:
     GenerationSettings *generationSettings;
 
     QLineEdit *serverUrlInput;
+    QLineEdit *userNameInput;
 
     QLabel *connectionStatusLabel;
     QLabel *versionLabel;

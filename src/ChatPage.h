@@ -41,11 +41,12 @@ public:
         const QString &characterName
     );
     
-    void beginUserMessage();
+    void beginUserMessage(const QString &userName);
 
     void displayConversation(
         const QJsonArray &conversation,
-        const QString &characterName
+        const QString &characterName,
+        const QString &userName
     );
 
 signals:

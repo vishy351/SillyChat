@@ -14,7 +14,6 @@
 #include <QSpinBox>
 #include <QVBoxLayout>
 
-
 SettingsPage::SettingsPage(
     KoboldClient *kobold,
     GenerationSettings *generationSettings,
@@ -24,6 +23,7 @@ SettingsPage::SettingsPage(
       kobold(kobold),
       generationSettings(generationSettings),
       serverUrlInput(nullptr),
+      userNameInput(nullptr),
       connectionStatusLabel(nullptr),
       versionLabel(nullptr),
       contextSizeInput(nullptr),
@@ -151,9 +151,21 @@ SettingsPage::SettingsPage(
         statusLayout
     );
 
-    mainLayout->addWidget(
-        connectionGroup
-    );
+    mainLayout->addWidget(connectionGroup);
+    
+    // User settings group
+    auto *userGroup = new QGroupBox("User", this);
+    auto *userLayout = new QHBoxLayout(userGroup);
+
+    auto *userNameLabel = new QLabel("Your Name:", userGroup);
+
+    userNameInput = new QLineEdit(userGroup);
+    userNameInput->setPlaceholderText("Your name");
+
+    userLayout->addWidget(userNameLabel);
+    userLayout->addWidget(userNameInput);
+
+    mainLayout->addWidget(userGroup);
 
     /*
      * --------------------------------------------------
@@ -815,6 +827,16 @@ SettingsPage::SettingsPage(
             saveSettings();
         }
     );
+    
+    connect(
+        userNameInput,
+        &QLineEdit::textChanged,
+        this,
+        [this]()
+        {
+            saveSettings();
+        }
+    );
 }
 
 
@@ -869,9 +891,10 @@ void SettingsPage::loadSettings()
         );
     }
 
-    QSettings settings(
-        "SillyChat",
-        "SillyChat"
+    QSettings settings("SillyChat", "SillyChat");
+    
+    userNameInput->setText(
+        settings.value("user/name", "You").toString()
     );
 
     const QString savedUrl =
@@ -892,17 +915,35 @@ void SettingsPage::loadSettings()
     }
 }
 
-
 void SettingsPage::saveSettings()
 {
-    if (!generationSettings)
-        return;
+    QSettings settings("SillyChat", "SillyChat");
 
-    updateGenerationSettingsFromUi();
+    QString userName = userNameInput->text().trimmed();
 
-    generationSettings->save();
+    if (userName.isEmpty())
+        userName = "You";
+
+    settings.setValue("user/name", userName);
+
+    if (generationSettings)
+    {
+        updateGenerationSettingsFromUi();
+        generationSettings->save();
+    }
+
+    settings.sync();
 }
 
+QString SettingsPage::userName() const
+{
+    QString name = userNameInput->text().trimmed();
+
+    if (name.isEmpty())
+        return "You";
+
+    return name;
+}
 
 void SettingsPage::updateGenerationSettingsFromUi()
 {

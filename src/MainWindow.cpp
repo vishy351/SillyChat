@@ -815,7 +815,9 @@ void MainWindow::setupConnections()
             if (index == 0)
             {
                 greeting =
-                    selectedCharacter->firstMessage;
+                    replacePlaceholders(
+                        selectedCharacter->firstMessage
+                    );
             }
             else
             {
@@ -829,11 +831,13 @@ void MainWindow::setupConnections()
                             .size())
                 {
                     greeting =
-                        selectedCharacter
-                            ->alternateGreetings
-                            .at(
-                                alternateIndex
-                            );
+                        replacePlaceholders(
+                            selectedCharacter
+                                ->alternateGreetings
+                                .at(
+                                    alternateIndex
+                                )
+                        );
                 }
             }
 
@@ -1232,7 +1236,9 @@ void MainWindow::selectCharacter(
             "assistant";
 
         greetingMessage["content"] =
-            selectedCharacter->firstMessage;
+            replacePlaceholders(
+              selectedCharacter->firstMessage
+            );
 
         conversation.append(
             greetingMessage
@@ -1257,6 +1263,28 @@ void MainWindow::selectCharacter(
     updateRetryButtonState();
 }
 
+QString MainWindow::replacePlaceholders(
+    const QString &text
+) const
+{
+    QString result = text;
+
+    result.replace(
+        "{{user}}",
+        settingsPage->userName()
+    );
+
+    if (selectedCharacter)
+    {
+        result.replace(
+            "{{char}}",
+            selectedCharacter->name
+        );
+    }
+
+    return result;
+}
+
 void MainWindow::buildCharacterPrompt()
 {
     if (!selectedCharacter)
@@ -1269,11 +1297,18 @@ void MainWindow::buildCharacterPrompt()
         selectedCharacter->name +
         ".\n\n";
 
+    prompt +=
+        "The user's name is " +
+        settingsPage->userName() +
+        ".\n\n";
+
     if (!selectedCharacter->description.isEmpty())
     {
         prompt +=
             "Description:\n" +
-            selectedCharacter->description +
+            replacePlaceholders(
+                selectedCharacter->description
+            ) +
             "\n\n";
     }
 
@@ -1281,7 +1316,9 @@ void MainWindow::buildCharacterPrompt()
     {
         prompt +=
             "Personality:\n" +
-            selectedCharacter->personality +
+            replacePlaceholders(
+                selectedCharacter->personality
+            ) +
             "\n\n";
     }
 
@@ -1289,7 +1326,9 @@ void MainWindow::buildCharacterPrompt()
     {
         prompt +=
             "Scenario:\n" +
-            selectedCharacter->scenario +
+            replacePlaceholders(
+                selectedCharacter->scenario
+            ) +
             "\n\n";
     }
 
@@ -1297,7 +1336,9 @@ void MainWindow::buildCharacterPrompt()
     {
         prompt +=
             "Character System Instructions:\n" +
-            selectedCharacter->characterSystemPrompt +
+            replacePlaceholders(
+                selectedCharacter->characterSystemPrompt
+            ) +
             "\n\n";
     }
 
@@ -1309,7 +1350,6 @@ void MainWindow::buildCharacterPrompt()
         "specifically requires it.";
 
     QJsonObject systemMessage;
-
     systemMessage["role"] =
         "system";
 
@@ -1622,7 +1662,8 @@ void MainWindow::displayConversation()
         conversation,
         selectedCharacter
             ? selectedCharacter->name
-            : QString()
+            : QString(),
+        settingsPage->userName()
     );
 
     updateRetryButtonState();
@@ -1709,7 +1750,9 @@ void MainWindow::sendMessage()
         QTextCursor::End
     );
 
-    chatPage->beginUserMessage();
+    chatPage->beginUserMessage(
+        settingsPage->userName()
+    );
 
     view->insertPlainText(
         message +

@@ -40,7 +40,7 @@ private:
     void selectCharacter(int index);
 
     void buildCharacterPrompt();
-
+    QString replacePlaceholders(const QString &text) const;
     void displayConversation();
 
     void sendMessage();
