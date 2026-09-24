@@ -2,6 +2,7 @@
 
 #include <QComboBox>
 #include <QDialog>
+#include <QFont>
 #include <QHBoxLayout>
 #include <QImage>
 #include <QJsonArray>
@@ -404,6 +405,22 @@ ChatPage::ChatPage(QWidget *parent)
 QTextEdit *ChatPage::chatView() const
 {
     return m_chatView;
+}
+
+void ChatPage::setChatFontSize(
+    int fontSize
+)
+{
+    QFont font =
+        m_chatView->font();
+
+    font.setPointSize(
+        fontSize
+    );
+
+    m_chatView->setFont(
+        font
+    );
 }
 
 QLineEdit *ChatPage::messageInput() const

@@ -21,6 +21,8 @@ public:
         GenerationSettings *generationSettings,
         QWidget *parent = nullptr
     );
+    
+    int chatFontSize() const;
 
     QString userName() const;
 
@@ -28,6 +30,10 @@ signals:
     void connectionStatusChanged(
         bool connected,
         const QString &version
+    );
+
+    void chatFontSizeChanged(
+        int fontSize
     );
 
 private:
@@ -46,9 +52,11 @@ private:
 
     QLabel *connectionStatusLabel;
     QLabel *versionLabel;
+    QLabel *chatFontPreview;
 
     QSpinBox *contextSizeInput;
     QSpinBox *maxResponseInput;
+    QSpinBox *chatFontSizeInput;
 
     QDoubleSpinBox *temperatureInput;
 

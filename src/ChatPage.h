@@ -16,6 +16,10 @@ public:
     explicit ChatPage(
         QWidget *parent = nullptr
     );
+    
+    void setChatFontSize(
+        int fontSize
+    );
 
     QTextEdit *chatView() const;
 

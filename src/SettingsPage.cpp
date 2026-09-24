@@ -4,6 +4,7 @@
 #include "GenerationSettings.h"
 
 #include <QDoubleSpinBox>
+#include <QFont>
 #include <QGridLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
@@ -26,8 +27,10 @@ SettingsPage::SettingsPage(
       userNameInput(nullptr),
       connectionStatusLabel(nullptr),
       versionLabel(nullptr),
+      chatFontPreview(nullptr),
       contextSizeInput(nullptr),
       maxResponseInput(nullptr),
+      chatFontSizeInput(nullptr),
       temperatureInput(nullptr),
       topKInput(nullptr),
       topPInput(nullptr),
@@ -166,6 +169,66 @@ SettingsPage::SettingsPage(
     userLayout->addWidget(userNameInput);
 
     mainLayout->addWidget(userGroup);
+
+    /*
+     * --------------------------------------------------
+     * Chat appearance
+     * --------------------------------------------------
+     */
+
+    auto *chatAppearanceGroup =
+        new QGroupBox(
+            "Chat Appearance",
+            this
+        );
+
+    auto *chatAppearanceLayout =
+        new QHBoxLayout(
+            chatAppearanceGroup
+        );
+
+    auto *chatFontSizeLabel =
+        new QLabel(
+            "Chat Font Size:",
+            chatAppearanceGroup
+        );
+
+    chatFontSizeInput =
+        new QSpinBox(
+            chatAppearanceGroup
+        );
+
+    chatFontSizeInput->setRange(
+        8,
+        32
+    );
+
+    chatFontSizeInput->setSingleStep(
+        1
+    );
+
+    chatFontPreview =
+        new QLabel(
+            "This is how your chat text will look.",
+            chatAppearanceGroup
+        );
+
+    chatAppearanceLayout->addWidget(
+        chatFontSizeLabel
+    );
+
+    chatAppearanceLayout->addWidget(
+        chatFontSizeInput
+    );
+
+    chatAppearanceLayout->addWidget(
+        chatFontPreview,
+        1
+    );
+
+    mainLayout->addWidget(
+        chatAppearanceGroup
+    );
 
     /*
      * --------------------------------------------------
@@ -837,6 +900,33 @@ SettingsPage::SettingsPage(
             saveSettings();
         }
     );
+    
+    connect(
+        chatFontSizeInput,
+        &QSpinBox::valueChanged,
+        this,
+        [this](
+            int fontSize
+        )
+        {
+            QFont font =
+                chatFontPreview->font();
+
+            font.setPointSize(
+                fontSize
+            );
+
+            chatFontPreview->setFont(
+                font
+            );
+
+            saveSettings();
+
+            emit chatFontSizeChanged(
+                fontSize
+            );
+        }
+    );
 }
 
 
@@ -896,6 +986,27 @@ void SettingsPage::loadSettings()
     userNameInput->setText(
         settings.value("user/name", "You").toString()
     );
+    
+    const int savedChatFontSize =
+        settings.value(
+            "chat/fontSize",
+            16
+        ).toInt();
+
+    chatFontSizeInput->setValue(
+        savedChatFontSize
+    );
+
+    QFont previewFont =
+        chatFontPreview->font();
+
+    previewFont.setPointSize(
+        savedChatFontSize
+    );
+
+    chatFontPreview->setFont(
+        previewFont
+    );
 
     const QString savedUrl =
         settings.value(
@@ -925,6 +1036,11 @@ void SettingsPage::saveSettings()
         userName = "You";
 
     settings.setValue("user/name", userName);
+    
+    settings.setValue(
+        "chat/fontSize",
+        chatFontSizeInput->value()
+    );
 
     if (generationSettings)
     {
@@ -943,6 +1059,11 @@ QString SettingsPage::userName() const
         return "You";
 
     return name;
+}
+
+int SettingsPage::chatFontSize() const
+{
+    return chatFontSizeInput->value();
 }
 
 void SettingsPage::updateGenerationSettingsFromUi()

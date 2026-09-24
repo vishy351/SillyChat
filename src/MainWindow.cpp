@@ -944,6 +944,24 @@ void MainWindow::setupConnections()
         }
     );
 
+    connect(
+        settingsPage,
+        &SettingsPage::chatFontSizeChanged,
+        this,
+        [this](
+            int fontSize
+        )
+        {
+            chatPage->setChatFontSize(
+                fontSize
+            );
+        }
+    );
+
+chatPage->setChatFontSize(
+    settingsPage->chatFontSize()
+);
+
     /*
      * Generation started.
      */
