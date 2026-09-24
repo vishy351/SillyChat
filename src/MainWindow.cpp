@@ -10,6 +10,8 @@
 #include <QStatusBar>
 #include <QLineEdit>
 #include <QAction>
+#include <QTimer>
+#include <QScrollBar>
 #include <QComboBox>
 #include <QCoreApplication>
 #include <QDialog>
@@ -58,11 +60,6 @@ MainWindow::MainWindow(QWidget *parent)
     setupConnections();
 
     loadCharacters();
-
-    if (!characters.isEmpty())
-    {
-        selectCharacter(0);
-    }
 
     connectToKobold();
 }
@@ -461,6 +458,17 @@ void MainWindow::setupPages()
 
             scrollArea->setWidget(
                 messageContainer
+            );
+
+            QTimer::singleShot(
+                0,
+                scrollArea,
+                [scrollArea]()
+                {
+                    scrollArea->verticalScrollBar()->setValue(
+                        scrollArea->verticalScrollBar()->maximum()
+                    );
+                }
             );
 
             dialogLayout->addWidget(
@@ -1717,17 +1725,6 @@ void MainWindow::sendMessage()
 
     if (message.isEmpty())
         return;
-
-    if (!selectedCharacter)
-    {
-        chatPage
-            ->chatView()
-            ->append(
-                "<b>Please select a character first.</b>"
-            );
-
-        return;
-    }
 
     generationSettings->save();
 
