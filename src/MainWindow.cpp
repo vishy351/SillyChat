@@ -1741,42 +1741,41 @@ void MainWindow::sendMessage()
             ->text()
             .trimmed();
 
-    if (message.isEmpty())
-        return;
-
     generationSettings->save();
 
-    QJsonObject userMessage;
+    if (!message.isEmpty())
+    {
+        QJsonObject userMessage;
+        userMessage["role"] =
+            "user";
 
-    userMessage["role"] =
-        "user";
+        userMessage["content"] =
+            message;
 
-    userMessage["content"] =
-        message;
+        conversation.append(
+            userMessage
+        );
 
-    conversation.append(
-        userMessage
-    );
+        auto *view =
+            chatPage->chatView();
 
-    auto *view =
-        chatPage->chatView();
+        view->moveCursor(
+            QTextCursor::End
+        );
 
-    view->moveCursor(
-        QTextCursor::End
-    );
+        chatPage->beginUserMessage(
+            settingsPage->userName()
+        );
 
-    chatPage->beginUserMessage(
-        settingsPage->userName()
-    );
+        view->insertPlainText(
+            message +
+            "\n\n"
+        );
 
-    view->insertPlainText(
-        message +
-        "\n\n"
-    );
-
-    chatPage
-        ->messageInput()
-        ->clear();
+        chatPage
+            ->messageInput()
+            ->clear();
+    }
 
     chatPage
         ->retryButton()
