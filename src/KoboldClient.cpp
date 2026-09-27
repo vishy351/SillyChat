@@ -495,6 +495,29 @@ void KoboldClient::abortGeneration()
         return;
 
     /*
+     * Tell KoboldCpp to abort the generation on
+     * the backend before closing our stream.
+     */
+    QUrl abortUrl(
+        m_serverUrl +
+        "/api/extra/abort"
+    );
+
+    QNetworkRequest abortRequest(
+        abortUrl
+    );
+
+    abortRequest.setHeader(
+        QNetworkRequest::ContentTypeHeader,
+        "application/json"
+    );
+
+    networkManager.post(
+        abortRequest,
+        QByteArray()
+    );
+
+    /*
      * Stop receiving data immediately.
      */
 
@@ -506,7 +529,6 @@ void KoboldClient::abortGeneration()
     if (reply)
     {
         reply->abort();
-
         reply->deleteLater();
     }
 
@@ -563,4 +585,3 @@ void KoboldClient::abortGeneration()
         completedText
     );
 }
-

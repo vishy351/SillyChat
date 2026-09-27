@@ -421,6 +421,10 @@ void ChatPage::setChatFontSize(
     m_chatView->setFont(
         font
     );
+    
+    m_messageInput->setFont(
+        font
+    );
 }
 
 QLineEdit *ChatPage::messageInput() const
