@@ -495,6 +495,21 @@ void KoboldClient::abortGeneration()
         return;
 
     /*
+     * Stop receiving data immediately.
+     */
+
+    QNetworkReply *reply =
+        generationReply;
+
+    generationReply = nullptr;
+
+    if (reply)
+    {
+        reply->abort();
+        reply->deleteLater();
+    }
+    
+    /*
      * Tell KoboldCpp to abort the generation on
      * the backend before closing our stream.
      */
@@ -516,21 +531,6 @@ void KoboldClient::abortGeneration()
         abortRequest,
         QByteArray()
     );
-
-    /*
-     * Stop receiving data immediately.
-     */
-
-    QNetworkReply *reply =
-        generationReply;
-
-    generationReply = nullptr;
-
-    if (reply)
-    {
-        reply->abort();
-        reply->deleteLater();
-    }
 
     generationActive = false;
 
