@@ -14,6 +14,7 @@
 #include <QPushButton>
 #include <QSettings>
 #include <QSpinBox>
+#include <QTimer>
 #include <QVBoxLayout>
 
 SettingsPage::SettingsPage(
@@ -42,7 +43,8 @@ SettingsPage::SettingsPage(
       repeatPenaltyRangeInput(nullptr),
       repeatPenaltySlopeInput(nullptr),
       seedInput(nullptr),
-      connectButton(nullptr)
+      connectButton(nullptr),
+      clearCacheButton(nullptr)
 {
     /*
      * --------------------------------------------------
@@ -108,6 +110,11 @@ SettingsPage::SettingsPage(
             "Connect",
             connectionGroup
         );
+    clearCacheButton =
+        new QPushButton(
+            "Clear Cache",
+            connectionGroup
+        );
 
     serverLayout->addWidget(
         serverLabel
@@ -120,6 +127,10 @@ SettingsPage::SettingsPage(
 
     serverLayout->addWidget(
         connectButton
+    );
+
+    serverLayout->addWidget(
+        clearCacheButton
     );
 
     connectionLayout->addLayout(
@@ -774,6 +785,56 @@ SettingsPage::SettingsPage(
         &QPushButton::clicked,
         this,
         &SettingsPage::connectToKobold
+    );
+
+    connect(
+        kobold,
+        &KoboldClient::cacheClearResult,
+        this,
+        [this](
+            bool success,
+            const QString &message
+        )
+        {
+            if (success)
+            {
+                clearCacheButton->setText(
+                    "Cache Cleared"
+                );
+
+                QTimer::singleShot(
+                    3000,
+                    this,
+                    [this]()
+                    {
+                        clearCacheButton->setText(
+                            "Clear Cache"
+                        );
+                    }
+                );
+            }
+            else
+            {
+                clearCacheButton->setText(
+                    "Clear Cache Failed"
+                );
+            }
+
+            clearCacheButton->setToolTip(
+                message
+            );
+        }
+    );
+
+    connect(
+        clearCacheButton,
+        &QPushButton::clicked,
+        this,
+        [this, kobold]()
+        {
+            if (kobold)
+                kobold->clearCache();
+        }
     );
 
     /*

@@ -26,11 +26,17 @@ public:
     );
 
     void abortGeneration();
+    void clearCache();
 
 signals:
     void connectionChanged(
         bool connected,
         const QString &version
+    );
+
+    void cacheClearResult(
+        bool success,
+        const QString &message
     );
 
     void contextSizeChanged(

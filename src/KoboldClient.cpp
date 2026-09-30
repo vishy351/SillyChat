@@ -585,3 +585,64 @@ void KoboldClient::abortGeneration()
         completedText
     );
 }
+
+void KoboldClient::clearCache()
+{
+    QUrl clearCacheUrl(
+        m_serverUrl +
+        "/api/admin/clear_state"
+    );
+
+    QNetworkRequest clearCacheRequest(
+        clearCacheUrl
+    );
+
+    clearCacheRequest.setHeader(
+        QNetworkRequest::ContentTypeHeader,
+        "application/json"
+    );
+
+    QNetworkReply *reply = networkManager.post(
+        clearCacheRequest,
+        QByteArray()
+    );
+
+    connect(
+        reply,
+        &QNetworkReply::finished,
+        this,
+        [this, reply]()
+        {
+            int statusCode = reply->attribute(
+                QNetworkRequest::HttpStatusCodeAttribute
+            ).toInt();
+
+            QString response = QString::fromUtf8(
+                reply->readAll()
+            );
+
+            bool success =
+                reply->error() == QNetworkReply::NoError &&
+                statusCode >= 200 &&
+                statusCode < 300;
+
+            QString message = QString(
+                "HTTP %1: %2"
+            ).arg(
+                statusCode
+            ).arg(
+                response.isEmpty()
+                    ? reply->errorString()
+                    : response
+            );
+
+            emit cacheClearResult(
+                success,
+                message
+            );
+
+            reply->deleteLater();
+        }
+    );
+}
+

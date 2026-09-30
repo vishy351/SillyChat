@@ -74,5 +74,7 @@ private:
     QSpinBox *seedInput;
 
     QPushButton *connectButton;
+    QPushButton *clearCacheButton;
+
 };
 
