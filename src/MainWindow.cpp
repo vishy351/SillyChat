@@ -353,6 +353,17 @@ void MainWindow::setupPages()
 
                     auto *contentEdit =
                         new QTextEdit();
+                        
+                    QFont editorFont =
+                        contentEdit->font();
+
+                    editorFont.setPointSize(
+                        settingsPage->chatFontSize()
+                    );
+
+                    contentEdit->setFont(
+                        editorFont
+                    );
 
                     contentEdit->setPlainText(
                         content

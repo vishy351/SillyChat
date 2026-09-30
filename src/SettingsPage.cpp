@@ -3,6 +3,7 @@
 #include "KoboldClient.h"
 #include "GenerationSettings.h"
 
+#include <QCoreApplication>
 #include <QDoubleSpinBox>
 #include <QFont>
 #include <QGridLayout>
@@ -981,7 +982,8 @@ void SettingsPage::loadSettings()
         );
     }
 
-    QSettings settings("SillyChat", "SillyChat");
+    QSettings settings(QCoreApplication::applicationDirPath() + "/config.ini",
+                   QSettings::IniFormat);
     
     userNameInput->setText(
         settings.value("user/name", "You").toString()
@@ -1028,7 +1030,8 @@ void SettingsPage::loadSettings()
 
 void SettingsPage::saveSettings()
 {
-    QSettings settings("SillyChat", "SillyChat");
+    QSettings settings(QCoreApplication::applicationDirPath() + "/config.ini",
+                   QSettings::IniFormat);
 
     QString userName = userNameInput->text().trimmed();
 
@@ -1130,10 +1133,8 @@ void SettingsPage::connectToKobold()
         url
     );
 
-    QSettings settings(
-        "SillyChat",
-        "SillyChat"
-    );
+    QSettings settings(QCoreApplication::applicationDirPath() + "/config.ini",
+                   QSettings::IniFormat);
 
     settings.setValue(
         "koboldcpp/serverUrl",

@@ -1,5 +1,6 @@
 #include "GenerationSettings.h"
 
+#include <QCoreApplication>
 #include <QSettings>
 
 GenerationSettings::GenerationSettings()
@@ -19,10 +20,8 @@ GenerationSettings::GenerationSettings()
 
 void GenerationSettings::load()
 {
-    QSettings settings(
-        "SillyChat",
-        "SillyChat"
-    );
+    QSettings settings(QCoreApplication::applicationDirPath() + "/config.ini",
+                   QSettings::IniFormat);
 
     maxResponse =
         settings.value(
@@ -93,10 +92,8 @@ void GenerationSettings::load()
 
 void GenerationSettings::save() const
 {
-    QSettings settings(
-        "SillyChat",
-        "SillyChat"
-    );
+    QSettings settings(QCoreApplication::applicationDirPath() + "/config.ini",
+                   QSettings::IniFormat);
 
     settings.setValue(
         "generation/maxResponse",
