@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.20)
 
 project(SillyChat
     VERSION 0.1.0
-    LANGUAGES CXX
+    LANGUAGES C CXX
 )
 
 set(CMAKE_CXX_STANDARD 20)
@@ -43,6 +43,21 @@ add_executable(SillyChat
 
     src/CharacterLoader.cpp
     src/CharacterLoader.h
+
+    third_party/md4c/md4c.c
+    third_party/md4c/md4c.h
+    third_party/md4c/md4c-html.c
+    third_party/md4c/md4c-html.h
+    third_party/md4c/entity.c
+    third_party/md4c/entity.h
+)
+
+set_source_files_properties(
+    third_party/md4c/md4c.c
+    third_party/md4c/md4c-html.c
+    third_party/md4c/entity.c
+    PROPERTIES
+    LANGUAGE C
 )
 
 target_link_libraries(SillyChat PRIVATE

@@ -1,5 +1,11 @@
 #include "ChatPage.h"
 
+extern "C"
+{
+#include "../third_party/md4c/md4c.h"
+#include "../third_party/md4c/md4c-html.h"
+}
+
 #include <QComboBox>
 #include <QDialog>
 #include <QFont>
@@ -27,6 +33,7 @@
 #include <QTextLength>
 #include <QVBoxLayout>
 #include <QUrl>
+#include <QRegularExpression>
 
 class ChatTextEdit : public QTextEdit
 {
@@ -205,6 +212,91 @@ private:
         dialog.exec();
     }
 };
+
+namespace
+{
+    void appendMarkdownOutput(
+        const MD_CHAR *text,
+        MD_SIZE size,
+        void *userdata
+    )
+    {
+        if (!userdata || !text || size == 0)
+            return;
+
+        auto *output =
+            static_cast<QByteArray *>(userdata);
+
+        output->append(
+            text,
+            static_cast<int>(size)
+        );
+    }
+
+    QString renderMarkdown(
+        const QString &markdown
+    )
+    {
+        const QByteArray input =
+            markdown.toUtf8();
+
+        QByteArray html;
+
+        const unsigned parserFlags =
+            MD_FLAG_TABLES |
+            MD_FLAG_STRIKETHROUGH |
+            MD_FLAG_TASKLISTS |
+            MD_FLAG_NOHTML;
+
+        const int result =
+            md_html(
+                input.constData(),
+                static_cast<MD_SIZE>(
+                    input.size()
+                ),
+                appendMarkdownOutput,
+                &html,
+                parserFlags,
+                0
+            );
+
+        if (result != 0)
+            return markdown.toHtmlEscaped();
+
+        QString rendered =
+            QString::fromUtf8(
+                html
+            );
+
+        /*
+         * Markdown links are intentionally kept
+         * as visible plain text rather than being
+         * rendered as clickable links.
+         */
+        rendered.replace(
+            QRegularExpression(
+                "<a\\b[^>]*>(.*?)</a>",
+                QRegularExpression::DotMatchesEverythingOption |
+                QRegularExpression::CaseInsensitiveOption
+            ),
+            "\\1"
+        );
+
+        /*
+         * Remove rendered images. We do not want
+         * Markdown images in the chat UI.
+         */
+        rendered.replace(
+            QRegularExpression(
+                "<img\\b[^>]*>",
+                QRegularExpression::CaseInsensitiveOption
+            ),
+            ""
+        );
+
+        return rendered;
+    }
+}
 
 ChatPage::ChatPage(QWidget *parent)
     : QWidget(parent),
@@ -1123,8 +1215,10 @@ void ChatPage::displayConversation(
         {
             beginUserMessage(userName);
 
-            m_chatView->insertPlainText(
-                content
+            m_chatView->insertHtml(
+                renderMarkdown(
+                    content
+                )
             );
 
             m_chatView->insertPlainText(
@@ -1137,8 +1231,10 @@ void ChatPage::displayConversation(
                 characterName
             );
 
-            m_chatView->insertPlainText(
-                content
+            m_chatView->insertHtml(
+                renderMarkdown(
+                    content
+                )
             );
 
             m_chatView->insertPlainText(

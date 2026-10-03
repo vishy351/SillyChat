@@ -647,38 +647,18 @@ void KoboldClient::abortGeneration()
     QString completedText =
         streamedText.trimmed();
 
-    int lastSentenceEnd = -1;
+    const int lastSentenceEnd =
+        findLastSentenceEnd(
+            completedText
+        );
 
-    for (int i = 0;
-         i < completedText.length();
-         ++i)
-    {
-        const QChar character =
-            completedText.at(i);
-
-        if (character == '.' ||
-            character == '!' ||
-            character == '?')
-        {
-            lastSentenceEnd =
-                i + 1;
-        }
-    }
-
-    if (lastSentenceEnd > 0)
+    if (lastSentenceEnd > 0 &&
+        lastSentenceEnd < completedText.length())
     {
         completedText =
             completedText.left(
                 lastSentenceEnd
             ).trimmed();
-    }
-    else
-    {
-        /*
-         * No complete sentence was generated.
-         */
-
-        completedText.clear();
     }
 
     streamedText =
