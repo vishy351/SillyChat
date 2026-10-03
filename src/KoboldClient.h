@@ -76,5 +76,8 @@ private:
     void processStreamLine(
         const QByteArray &line
     );
+    static int findLastSentenceEnd(
+        const QString &text
+    );
 };
 

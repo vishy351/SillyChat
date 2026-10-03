@@ -1,12 +1,135 @@
 #include "KoboldClient.h"
 #include "GenerationSettings.h"
 
+#include <QStringList>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QJsonParseError>
 #include <QNetworkRequest>
 #include <QUrl>
+
+namespace
+{
+    bool isClosingCharacter(
+        const QChar character
+    )
+    {
+        return character == '"' ||
+               character == '\'' ||
+               character == ')' ||
+               character == ']' ||
+               character == '}' ||
+               character == '*';
+    }
+
+    bool isCommonAbbreviation(
+        const QString &word
+    )
+    {
+        static const QStringList abbreviations =
+        {
+            "Mr.",
+            "Mrs.",
+            "Ms.",
+            "Dr.",
+            "Prof.",
+            "Sr.",
+            "Jr.",
+            "St.",
+            "vs.",
+            "etc.",
+            "e.g.",
+            "i.e.",
+            "a.m.",
+            "p.m."
+        };
+
+        return abbreviations.contains(
+            word,
+            Qt::CaseInsensitive
+        );
+    }
+}
+
+int KoboldClient::findLastSentenceEnd(
+    const QString &text
+)
+{
+    int lastSentenceEnd = -1;
+
+    for (int i = 0;
+         i < text.length();
+         ++i)
+    {
+        const QChar character =
+            text.at(i);
+
+        if (character != '.' &&
+            character != '!' &&
+            character != '?')
+        {
+            continue;
+        }
+
+        /*
+         * A period between two digits is most likely
+         * a decimal number, e.g. 3.14.
+         */
+        if (character == '.' &&
+            i > 0 &&
+            i + 1 < text.length() &&
+            text.at(i - 1).isDigit() &&
+            text.at(i + 1).isDigit())
+        {
+            continue;
+        }
+
+        /*
+         * Check the word immediately preceding the period
+         * for common abbreviations such as "Mr." or "Dr.".
+         */
+        if (character == '.')
+        {
+            int wordStart = i - 1;
+
+            while (wordStart >= 0 &&
+                   !text.at(wordStart).isSpace())
+            {
+                --wordStart;
+            }
+
+            const QString word =
+                text.mid(
+                    wordStart + 1,
+                    i - wordStart
+                );
+
+            if (isCommonAbbreviation(word))
+            {
+                continue;
+            }
+        }
+
+        /*
+         * This is a sentence-ending punctuation mark.
+         *
+         * Consume whitespace and closing/formatting
+         * characters which belong to the sentence.
+         */
+        int end = i + 1;
+
+        while (end < text.length() &&
+               isClosingCharacter(text.at(end)))
+        {
+            ++end;
+        }
+
+        lastSentenceEnd = end;
+    }
+
+    return lastSentenceEnd;
+}
 
 KoboldClient::KoboldClient(QObject *parent)
     : QObject(parent),
@@ -242,15 +365,6 @@ void KoboldClient::generate(
 
     QJsonObject modifiedSettings = settingsJson;
 
-    if (modifiedSettings.contains("max_tokens"))
-    {
-        const int maxTokens =
-            modifiedSettings.value("max_tokens").toInt();
-
-        modifiedSettings["max_tokens"] =
-            maxTokens + 30;
-    }
-
     for (auto it = modifiedSettings.begin();
          it != modifiedSettings.end();
          ++it)
@@ -348,24 +462,13 @@ void KoboldClient::generate(
             QString completedText =
                 streamedText.trimmed();
 
-            int lastSentenceEnd = -1;
+            const int lastSentenceEnd =
+                findLastSentenceEnd(
+                    completedText
+                );
 
-            for (int i = 0;
-                 i < completedText.length();
-                 ++i)
-            {
-                const QChar character =
-                    completedText.at(i);
-
-                if (character == '.' ||
-                    character == '!' ||
-                    character == '?')
-                {
-                    lastSentenceEnd = i + 1;
-                }
-            }
-
-            if (lastSentenceEnd > 0)
+            if (lastSentenceEnd > 0 &&
+                lastSentenceEnd < completedText.length())
             {
                 completedText =
                     completedText.left(
